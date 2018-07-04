@@ -118,7 +118,7 @@ int main(int argc, char **argv)
 
   /* Open the input file */
   if ((fp = fopen(argv[1],"r")) == NULL) {
-    printf(" Can't open <%s>\n",INPUT_FILE);
+    printf(" Can't open <%s>\n",argv[1]);
     exit(1);
   }
 
@@ -126,7 +126,7 @@ int main(int argc, char **argv)
    * Parse lines: this is written this way to allow the alignments to
    * be broken amongst lines if necessary
    */
-  printf(" Parse <%s> ... \n",INPUT_FILE);
+  printf(" Parse <%s> ... \n",argv[1]);
   while(fgets(line,sizeof(line),fp) != NULL) {
 
     if (line[0] == '>') {
@@ -249,10 +249,10 @@ int main(int argc, char **argv)
     long long temp = num_species;
     temp = (temp * (temp+1)) / 2;
     printf(" Write file <%s> with (%lld distances = %lld lines of dots)\n",
-	   OUTPUT_FILE,temp,temp/70000000);
+	   argv[2],temp,temp/70000000);
   }
   if ((fp = fopen(argv[2],"w")) == NULL) {
-    printf(" Error: Could not open <%s>\n",OUTPUT_FILE);
+    printf(" Error: Could not open <%s>\n",argv[2]);
     exit(1);
   }
 

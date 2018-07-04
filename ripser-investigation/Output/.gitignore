@@ -1,1 +1,6 @@
+*.fasta
+*.lower_distance_matrix
+*.ripser
+*~
+*#
 
