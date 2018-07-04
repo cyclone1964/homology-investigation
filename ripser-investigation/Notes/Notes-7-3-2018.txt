@@ -1,0 +1,22 @@
+Separate the different dimensions
+
+Write some statistacl analysis of the barcodes i.e.:
+
+Given a band of distance, what fraction of the k=1 bars die in that window.
+KS test on start of bars
+
+Plot dimensions separately
+
+tool called "mapper" that returns the nerve
+
+tanamoto coefficient: size of intesection over size of union
+
+look into CLIQUE
+
+Free student account on github gives us 2 private repositories.
+
+sshuttle --dns -r mdaily@london.cs.uri.edu
+
+C++ library called thrust is Boost for GPUs
+
+Boost also: this is what Chris uses

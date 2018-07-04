@@ -1,0 +1,5 @@
+*.fasta
+*.lower_diagonal_matrix
+*~
+createLowerDistancelMatrix
+

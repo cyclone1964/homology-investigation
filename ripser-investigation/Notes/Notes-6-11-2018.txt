@@ -1,0 +1,39 @@
+Algorithm improvements in ripser. Not gotten very far.
+
+Other guy is working on research ideas.
+
+Learn C++
+
+kalgrind profiler
+
+use xcode with profiling
+
+Plan:
+
+Take a quick C++ tutorial with exercises!!
+Do the profiling
+Comment The Code
+Go Through the code with guy.
+Find time sink
+Fix it!!
+Read Roadmap paper
+Read Zomorodian Paper
+
+
+Two machines Ark: 28 cores 1/2 TB ram 40 tB disk 2TB no GPU
+ARK also has data sets for us.
+
+The Sloan Digital Sky data sounds ineresting Biological data
+(Molecular Data) Hamming distance on sequences (which is a metric)
+
+
+Minski: 128 GRAM, TESLA GPU
+These are all internal
+
+London: An account we can ssh in and hop on to these.
+
+Two data sets from different processes? PH is one tool, another is
+histogram of distances between random subsets.
+
+Alpha complexes: staring with a convex hull, reduce some factor and
+see how many segments you end up with.

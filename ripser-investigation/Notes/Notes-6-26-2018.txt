@@ -1,0 +1,72 @@
+I'm trying to figure out al the indirection here. so some types might help
+
+a value_t is a double
+an entry_t is an index_t is a long long
+
+A diameter_index_t is a (value_t, index_t) pair
+So a diameter entry is a (value_t, entry_t) pair
+
+get_diameter(diameter_index) returns the first value of a
+diameter_index which makes me think it's an actual diameter
+
+get_index(diameter_index) returns the second, which makes me think
+it's an index.
+
+get_entry(diamter_entry) returns the second, which makes me think it's
+an entry in something.
+
+get_index(diameter_entry) returns the get_index(get_entry(argument))
+which returns the second of the pair, which is of type entry_t, and so
+get_index(entry_t) , which is an entry type, so it just returns itself
+right? So that's the same as just returning the scond right? So
+get_entry(diameter_index) and get_index(diamater_index) return the
+same thing?
+
+get_coefficient(
+
+system ark 28 cores, 512G ram 40 TB of disk, + 2TB of SSD in
+/scratch. /data is a RAID10 with 22 T and where I can put data.
+
+minsky 64G of RAM (128 soon?) 16 cores (32 threads). /data is 6T
+single disk mounts data from ark through a 10gB link and a NVIDIA
+TESLA.
+
+in /data on ark I have a directory on /data.
+
+virtualenv is a sandbox for something .. ignore
+
+in /data/ndaniels has pf3k which has malaria data
+
+in /data/glamagna he has apogee and eboss stuff. original data in eboss.
+
+Two collections in astronomy data: apogee and eboss. These are spectral data
+
+The apgoee.normalized.tsv or apogee.tsv. There re memmap files there
+that Greg has probably read in and saved.
+
+The biological data is in
+/data/ndaniels/Isolated_name_strains_165_aligned.fasta
+
+These are "onehots" encoding, converting the ascii to 5 bit
+characters, where 1 bit is set: the A, C, G, T and - file.  The
+distance function is hamming on that.
+
+Smith waterman or needleman wunch
+
+GreenGenes data base has a download area: greengenes.secondgenome.com
+
+There's a paper there ate aem.asm.org (might have to be on the URI net for that)
+Treat dots and dashes as the same
+
+Try this on ark.
+
+Need a barcode plotter for the output of ripser.
+
+The statement is everything on the line after the header line
+
+The LDM will be the dot product between the onehots encoding
+
+Noahs Phone
+
+781-640-4893
+
