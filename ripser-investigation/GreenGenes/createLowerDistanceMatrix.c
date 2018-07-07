@@ -284,7 +284,7 @@ int main(int argc, char **argv)
        */
       distance = alignment_length - distance;
       fprintf(fp,"%d",distance);
-      if (first - species < (second - species) - 1)
+      if (second - species < (first - species) - 1)
 	fprintf(fp,",");
       else
 	fprintf(fp,"\n");
