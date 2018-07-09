@@ -7,7 +7,16 @@
 
 # We use re for parsing of the lines
 import re
+
+# This for getting at argv
 import sys
+
+# For sqrt
+import math
+
+# This for doing KS tests on the endpoints to see if they are normal
+from scipy import stats
+import numpy
 
 # And the plotting package
 import matplotlib.pyplot as plt
@@ -27,10 +36,51 @@ def plotBarcodes(name,barcodes,dimension):
     fig, ax = plt.subplots()
     for index in range(len(barcodes)):
         ax.plot(barcodes[index],[index, index])
-    ax.set_title(sys.argv[1] +
-                 ": Persistence On Dimension " +
-                 dimension)
-    plt.savefig(name+"-" + dimension + ".png")
+    ax.set_title("Dimension: " + dimension)
+    plt.savefig(sys.argv[1] + "-barcodes-" + dimension + ".png")
+
+# This function plots a histogram of the starting and ending distance for
+# the current dimension.
+def plotEndpoints(name,barCodes,dimension):
+    print "Plot", len(barCodes), "histograms"
+
+    endPoints = [barCodes[i][1] for i in xrange(len(barCodes))]
+    lengths = [(barCodes[i][1] - barCodes[i][0]) for i in xrange(len(barCodes))]
+
+    fig, ax = plt.subplots()
+    ax.plot(lengths, endPoints,'.')
+    ax.set_title("Dimension " + dimension)
+    plt.xlabel('Barcode Length')
+    plt.ylabel('Barcode Endpoint')
+    plt.savefig(name +"-endpoints-" + dimension + ".png")
+
+    # Now, let's do an Anderson-Wilke test against a normal distribution
+    temp = (endPoints - numpy.mean(endPoints))/math.sqrt(numpy.var(endPoints))
+    normResults = stats.anderson(temp,'norm');
+    print normResults
+
+    # Plot the histogram as a bar plot
+    fix, ax = plt.subplots()
+    plt.hist(endPoints,128)
+    
+    ax.set_title("Dimension:" + dimension +
+                 " Anderson(" + str(round(normResults[0],3)) + "," +
+                 str(round(normResults[1][0],3)) + "," +
+                 str(round(normResults[2][0],3)) + ")")
+    plt.xlabel('Barcode Endpoint')
+    plt.ylabel('Count')
+    plt.draw()
+    plt.savefig(name +"-endpoint-histogram-" + dimension + ".png")
+
+    # Now, let's do a histogram of the lengths
+    ax.clear()
+    ax.hist(lengths,128)
+    ax.set_title("Dimension: " + dimension)
+    plt.xlabel('Barcode Length')
+    plt.ylabel('Count')
+    plt.draw()
+    plt.savefig(name + "-length-histogram-" + dimension + ".png")
+    
 
 # The main function that opens the input file, which is it's only
 # argument, and is assumed to be the catted output of a ripser run. It
@@ -45,6 +95,7 @@ if __name__ == "__main__":
 
     # Initialize the list of barcodes to empty
     barcodes = []
+    allBarCodes = []
 
     # The dimension lines have the word "persistence" in them and the last word
     # is a representation of the dimension.
@@ -60,6 +111,8 @@ if __name__ == "__main__":
             # axes, plot them, and show the axes
             if (len(barcodes) > 0):
                 plotBarcodes(sys.argv[1],barcodes,dimension)
+                plotEndpoints(sys.argv[1],barcodes,dimension)
+                allBarCodes.append(barcodes)
 
             # In any event, initialize new barcodes and starting point
             words = line.split(' ')
@@ -90,5 +143,8 @@ if __name__ == "__main__":
             barcodes.append(barcode)
 
 
+    allBarCodes.append(barcodes)
     plotBarcodes(sys.argv[1],barcodes,dimension)
+    plotEndpoints(sys.argv[1],barcodes,dimension)
+    
 
