@@ -75,6 +75,11 @@ public:
     return B[n][k];
   }
 };
+
+/*
+ * This simply makees a table of multiplicative inverses in a finite
+ * field which, for a F2, is 1-x
+ */
 std::vector<coefficient_t> multiplicative_inverse_vector(const coefficient_t m) {
   std::vector<coefficient_t> inverse(m);
   inverse[1] = 1;
@@ -90,7 +95,6 @@ std::vector<coefficient_t> multiplicative_inverse_vector(const coefficient_t m) 
     inverse[a] = m - (inverse[m % a] * (m / a)) % m;
   return inverse;
 }
-
 
 /* 
  *
@@ -129,7 +133,7 @@ index_t get_next_vertex(index_t& v,
 }
 
 /* 
- * apparently this gets all the vertices in a simplex 
+ * Apparently this gets all the vertices in a simplex 
  */
 template <typename OutputIterator>
 OutputIterator get_simplex_vertices(index_t idx,
@@ -683,12 +687,11 @@ void assemble_columns_to_reduce(std::vector<diameter_index_t>& columns_to_reduce
   /* Clear the columns! This means we are starting from scratch */
   columns_to_reduce.clear();
 
-#ifdef MPD
+#ifdef MPD_MORE
   std::cout << " Assembling from pivots: \n";
   
   for (index_t index = 0; index < num_simplices; ++index) {
     auto temp = pivot_column_index.find(index);
-    
     std::cout << "<" << index << ":" << temp << ">\n";
   }
 #endif
@@ -920,9 +923,8 @@ void compute_pairs(std::vector<diameter_index_t>& columns_to_reduce,
       }
 #endif
 
-      /* Add this pivot to the pvito column index, which is the output */
+      /* Add this pivot to the pivot column index, which is the output */
       pivot_column_index.insert(std::make_pair(get_index(pivot), i));
-
 #ifdef ASSEMBLE_REDUCTION_MATRIX
       /*  replace current column of reduction_coefficients (with a single diagonal 1 entry) */
       /*  by reduction_column (possibly with a different entry on the diagonal) */
@@ -939,7 +941,11 @@ void compute_pairs(std::vector<diameter_index_t>& columns_to_reduce,
 
 }
 
-enum file_format { LOWER_DISTANCE_MATRIX, UPPER_DISTANCE_MATRIX, DISTANCE_MATRIX, POINT_CLOUD, DIPHA };
+enum file_format { LOWER_DISTANCE_MATRIX,
+		   UPPER_DISTANCE_MATRIX,
+		   DISTANCE_MATRIX,
+		   POINT_CLOUD,
+		   DIPHA };
 
 template <typename T> T read(std::istream& s) {
   T result;
@@ -1048,7 +1054,8 @@ compressed_lower_distance_matrix read_dipha(std::istream& input_stream) {
  * and then switch on the parsing logic rather than define all these
  * templates? If you're going to switch anyways ...
  */ 
-compressed_lower_distance_matrix read_file(std::istream& input_stream, file_format format) {
+compressed_lower_distance_matrix read_file(std::istream& input_stream,
+					   file_format format) {
   switch (format) {
   case LOWER_DISTANCE_MATRIX:
     return read_lower_distance_matrix(input_stream);
@@ -1091,7 +1098,7 @@ int main(int argc, char** argv) {
 
   const char* filename = nullptr;
 
-  file_format format = DISTANCE_MATRIX;
+  file_format format = LOWER_DISTANCE_MATRIX;
 
   index_t dim_max = 1;
   value_t threshold = std::numeric_limits<value_t>::max();
@@ -1151,7 +1158,7 @@ int main(int argc, char** argv) {
   {
     index_t irow,icol;
 
-    std::cout << "Input Matrix: \n\n";
+    std::cout << "Input Matrix(" << dist.size() << "): \n\n";
     
     for (irow = 0; irow < dist.size(); irow++) {
       std::cout << "  Row(" << irow << "): ";
@@ -1164,7 +1171,7 @@ int main(int argc, char** argv) {
 #endif
   
   /* 
-   * The distance class has a method ro returning the "size" which is
+   * The distance class has a method for returning the "size" which is
    * the number of points i.e number of rows-1 in the compressed
    * distance matrix
    */
@@ -1176,17 +1183,18 @@ int main(int argc, char** argv) {
    * library minmax_element function but what is it with
    * distances.begin() and distances.end()
    */
-  auto value_range = std::minmax_element(dist.distances.begin(), dist.distances.end());
+  auto value_range =
+    std::minmax_element(dist.distances.begin(), dist.distances.end());
   std::cout << "value range: ["
 	    << *value_range.first << ","
 	    << *value_range.second
 	    << "]" << std::endl;
-
   dim_max = std::min(dim_max, n - 2);
 
 #ifdef MPD
   std::cout << "Dim Max: " << dim_max << std::endl;
 #endif
+
   /* 
    * Creates the binomial coefficient bale, This gets passed by
    * reference most of the time 
@@ -1280,8 +1288,9 @@ int main(int argc, char** argv) {
       }
     }
 
-#ifdef MPD
+
     /* THese are the columns sorted in increasing diameter order */
+#ifdef MPD_MORE
     {
       int count = 0;
       std::cout << "Columns to reduce: " << std::endl;
@@ -1293,6 +1302,7 @@ int main(int argc, char** argv) {
       std::cout << std::endl;
     }
 #endif
+
     std::reverse(columns_to_reduce.begin(), columns_to_reduce.end());
 
 #ifdef PRINT_PERSISTENCE_PAIRS
@@ -1323,6 +1333,9 @@ int main(int argc, char** argv) {
     hash_map<index_t, index_t> pivot_column_index;
     pivot_column_index.reserve(columns_to_reduce.size());
 
+    /*
+     * 
+     */
     compute_pairs(columns_to_reduce,
 		  pivot_column_index,
 		  dim, n,

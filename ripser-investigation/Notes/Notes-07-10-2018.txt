@@ -1,0 +1,18 @@
+Things to check:
+
+Is it doing what we think it should do? Make a simples case and check
+it out: this will have to have at least 5 points in it.
+
+Can we randomize the gene sets in case the first N are biased insome way.
+
+Try adding a uniform random number to each distance to see if we get
+more simplices.
+
+Sanity check the distance computation.
+
+Work on Noah's data set (16S) not mine (16ggs).
+
+Modify createLowerDistanceMatrix to:
+
+Allow for picking every N'th gy (--decimation)
+Provide a regexp for the name that is queried (--species)

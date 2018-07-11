@@ -140,6 +140,7 @@ int main(int argc, char **argv)
 
 	/* Add a word */
 	if (current_species->num_words < MAX_WORDS) {
+	  current_word = current_word << (32 - num_bits);
 	  current_species->words[current_species->num_words++] = current_word;
 	} else {
 	  printf("Error: Too many alignment words\n");
@@ -154,10 +155,10 @@ int main(int argc, char **argv)
 	 * assumptions about integer math.
 	 */
 	if (num_species == 0) {
-	  alignment_length = (32 * current_species->num_words + num_bits)/5;
+	  alignment_length = (32 * (current_species->num_words-1) + num_bits)/5;
 	  printf(" .... Alignment length is %d\n",alignment_length);
 	} else if (num_species > 0) {
-	  if ((32*current_species->num_words + num_bits)/5 != alignment_length){
+	  if ((32*(current_species->num_words-1) + num_bits)/5 != alignment_length){
 	    printf(" Error: Species[%d] <%s> has strange aligment (%d,%d) : ignore\n",
 		   (int)(current_species - species),
 		   current_species->name,
@@ -197,28 +198,27 @@ int main(int argc, char **argv)
       for (in = line; *in != '\n' && *in != 0; in++) {
 	switch (*in) {
 	case 'A':
-	  onehots = 0x10000;
+	  onehots = 0x10;
 	  break;
 	case 'G':
-	  onehots = 0x01000;
+	  onehots = 0x8;
 	  break;
 	case 'T':
-	  onehots = 0x00100;
+	  onehots = 0x4;
 	  break;
 	case 'C':
-	  onehots = 0x00010;
+	  onehots = 0x2;
 	  break;
 	default:
-	  onehots = 0x00001;
+	  onehots = 0x1;
 	  break;
 	}
 
 	/* Now push the one hots onto the current word ... */
 	for (ibit=0;ibit<5;ibit++) {
+	  current_word = current_word << 1;
 	  current_word |= (onehots & 0x1);
 	  onehots = onehots >> 1;
-	  current_word = current_word << 1;
-
 	  /* 
 	   * If we have pushed all the bits, store this word and make
 	   * a new one
@@ -234,6 +234,7 @@ int main(int argc, char **argv)
 	    current_word = num_bits = 0;
 	  }
 	}
+	
       }
     }
   }
@@ -283,11 +284,7 @@ int main(int argc, char **argv)
        * number of matches 
        */
       distance = alignment_length - distance;
-      fprintf(fp,"%d",distance);
-      if (second - species < (first - species) - 1)
-	fprintf(fp,",");
-      else
-	fprintf(fp,"\n");
+      fprintf(fp,"%d,",distance);
 
       if ((++num_distances % 1000000) == 0) {
 	printf(".");
@@ -295,6 +292,7 @@ int main(int argc, char **argv)
       }
       if (num_distances % 70000000 == 0) printf("\n");
     }
+    fprintf(fp,"\n");
   }
 
   /* Close the file */
