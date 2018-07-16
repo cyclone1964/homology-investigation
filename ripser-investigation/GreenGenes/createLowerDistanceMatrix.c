@@ -37,7 +37,15 @@
  * subtracting that from the overall alignment length.
  */
 #include <stdio.h>
+#include <regex.h>
+#include <string.h>
 #include <stdlib.h>
+
+/* The USAGE message */
+#define USAGE(pname) {\
+  printf("%s: <--regexp string> <--stride #> input_file output_file\n",pname); \
+  exit(1);								\
+}
 
 /* 
  * This is the maximum number of species we can have: the file has
@@ -54,7 +62,6 @@
 #define MAX_WORDS (8*MAX_ALIGNMENT_LENGTH/32)
 
 /* The lines can be REALLY long */
-static int num_species = -1;
 static char line[MAX_ALIGNMENT_LENGTH];
 
 /* 
@@ -74,13 +81,15 @@ static SPECIES species[MAX_SPECIES];
 /* The main and only routine that does everything described in the header */
 int main(int argc, char **argv)
 {
-
-  char *pname,*inname, *outname;
+  /* Used to hold command line arguments */
+  char *pname, *inname, *outname, *regexp_string = NULL;
 
   /* Character pointers used to parse lines from input to output */
   char *in, *out;
 
   /* Counters and limits */
+  int stride = 1;
+  int num_species = -1;
   int ibit, iword, num_bits;
 
   /* 
@@ -100,6 +109,9 @@ int main(int argc, char **argv)
    * distance matrix 
    */
   int num_distances;
+
+  /* The compiled regular expression */
+  regex_t regexp_compiled;
   
   /* A file pointer used for both input and output */
   FILE *fp;
@@ -111,14 +123,32 @@ int main(int argc, char **argv)
   SPECIES *current_species = species;
   SPECIES *first, *second;
 
-  if (argc != 3) {
-    printf(" Usage: createLowerDistanceMatrix InputFileName OutputFileName\n");
-    exit(1);
+  pname = argv[0]; argc--; argv++;
+
+  while (argc > 2) {
+    if (!strcmp(argv[0],"--stride")) {
+      if (!sscanf(argv[1],"%d",&stride))
+	USAGE(pname);
+      argc -= 2; argv += 2;
+      continue;
+    }
+
+    if (!strcmp(argv[0],"--regexp")) {
+      regexp_string = argv[1];
+      argc -= 2; argv += 2;
+      continue;
+    }
+
+    USAGE(pname);
   }
 
+  /* Get the rest of the command line arguments */
+  if (argc != 2) USAGE(pname);
+  inname = argv[0]; outname = argv[1];
+
   /* Open the input file */
-  if ((fp = fopen(argv[1],"r")) == NULL) {
-    printf(" Can't open <%s>\n",argv[1]);
+  if ((fp = fopen(inname,"r")) == NULL) {
+    printf(" Can't open <%s>\n",inname);
     exit(1);
   }
 
@@ -126,7 +156,7 @@ int main(int argc, char **argv)
    * Parse lines: this is written this way to allow the alignments to
    * be broken amongst lines if necessary
    */
-  printf(" Parse <%s> ... \n",argv[1]);
+  printf(" Parse <%s> ... \n",inname);
   while(fgets(line,sizeof(line),fp) != NULL) {
 
     if (line[0] == '>') {
@@ -156,8 +186,11 @@ int main(int argc, char **argv)
 	 */
 	if (num_species == 0) {
 	  alignment_length = (32 * (current_species->num_words-1) + num_bits)/5;
-	  printf(" .... Alignment length is %d\n",alignment_length);
 	} else if (num_species > 0) {
+	  static int printed = 0;
+	  if (!printed)
+	    printf(" .... Alignment length is %d\n",alignment_length);
+	  printed = 1;
 	  if ((32*(current_species->num_words-1) + num_bits)/5 != alignment_length){
 	    printf(" Error: Species[%d] <%s> has strange aligment (%d,%d) : ignore\n",
 		   (int)(current_species - species),
@@ -168,6 +201,7 @@ int main(int argc, char **argv)
 	    num_species--;
 	  }
 	}
+
       }
       
       /* It's a new species: go to the next one */
@@ -240,7 +274,54 @@ int main(int argc, char **argv)
   }
   printf(" Read (%d) Species\n",num_species);
   fclose(fp);
-  
+
+
+  /* Now, we implemented the regular expression reduction */
+  if (regexp_string != NULL) {
+    printf("Select species according to regexp <%s> .... \n",regexp_string);
+
+    /* Compile the regular expression */
+    if (regcomp(&regexp_compiled,regexp_string,REG_EXTENDED | REG_NOSUB)) {
+      printf(" Bad Regular Expression <%s>\n",regexp_string);
+      exit(1);
+    }
+    
+    /* Find the first match */
+    for (first= species; first - species < num_species; first++)
+      if (!regexec(&regexp_compiled, first->name, 0, NULL, 0))
+	break;
+    if (first - species == num_species) {
+      printf(" No Matching species found: <%s>\n",regexp_string);
+      exit(1);
+    }
+
+    /* Save this in the first position */
+    current_species = species;
+    *current_species = *first;
+
+    /* Now, go through the rest and add them as we go */
+    for (first = first + 1; first - species < num_species; first++) {
+      if (!regexec(&regexp_compiled,first->name,0,NULL,0)) {
+	current_species ++;
+	*current_species = *first;
+      }
+    }
+
+    /* Update the number of species */
+    num_species = current_species - species;
+    printf(" .... %d Found\n",num_species);
+  }
+
+  /* Now, reduce by the stride */
+  if (stride > 1) {
+    printf(" Reduce by the stride %d ..... \n",stride);
+    for (first = current_species = species;
+	 first - species < num_species;
+	 first += stride, current_species++)
+      *current_species = *first;
+    num_species = current_species - species;
+    printf(" .... %d left\n",num_species);
+  }
   /* 
    * Ok, now we have all the data loaded we think.  Let go through a
    * double loop and compute the hamming distance, but first open the
@@ -250,10 +331,10 @@ int main(int argc, char **argv)
     long long temp = num_species;
     temp = (temp * (temp+1)) / 2;
     printf(" Write file <%s> with (%lld distances = %lld lines of dots)\n",
-	   argv[2],temp,temp/70000000);
+	   outname,temp,temp/70000000);
   }
-  if ((fp = fopen(argv[2],"w")) == NULL) {
-    printf(" Error: Could not open <%s>\n",argv[2]);
+  if ((fp = fopen(outname,"w")) == NULL) {
+    printf(" Error: Could not open <%s>\n",outname);
     exit(1);
   }
 
@@ -262,7 +343,7 @@ int main(int argc, char **argv)
    * for speed (not that it really matters)
    */
   num_distances = 0;
-  for (first = species; first - species < num_species;first++) {
+  for (first = species+1; first - species < num_species;first++) {
     for (second = species; second - species < first - species; second++) {
 
       /* 
