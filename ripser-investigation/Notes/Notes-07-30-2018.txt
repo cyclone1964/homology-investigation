@@ -1,0 +1,6 @@
+So today we talked about paralellizing. Things to do:
+
+Learn Ripser You Idiot
+Vietoris Rips?
+Run ripser to dim 2 on random sets of N on ark.
+

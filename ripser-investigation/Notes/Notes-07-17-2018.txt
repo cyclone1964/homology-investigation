@@ -1,0 +1,10 @@
+Run the simple case in the online area. I did this .. it's the same
+
+Code annotation to figure out why it's doing what it's doing in the 5
+point case.
+
+Continue to try dionysus on this simple set
+
+Read Harer!!!!
+
+

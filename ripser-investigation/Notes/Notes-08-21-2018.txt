@@ -1,0 +1,8 @@
+Contact Boisonnate to inquire about available of CSD source code or pseudo code.
+(Consider a literature or github search first)
+
+Linkage between cluster distances and barcodes
+
+Try making three dimensional data with different cluster structure and
+see what the barcodes look like.
+
