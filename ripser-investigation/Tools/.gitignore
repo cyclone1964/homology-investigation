@@ -1,3 +1,6 @@
 *~
 #*
-
+*.points
+*.lower_distance_matrix
+*.png
+*.dat

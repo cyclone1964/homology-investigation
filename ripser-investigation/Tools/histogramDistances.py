@@ -47,4 +47,3 @@ if __name__ == "__main__":
 
     print "1 sigma: ", mean-var, " - ", mean+var
     print "2 sigma: ", mean-2*var, " - ", mean+2*var
-    

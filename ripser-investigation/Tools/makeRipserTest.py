@@ -46,7 +46,7 @@ if __name__ == "__main__":
                                xvalues[secondIndex] - xvalues[firstIndex])
             angle = angle * 180/math.pi
             if (angle > 180):
-                angle = angle - 390
+                angle = angle - 360
             if (angle > 90 or angle < -90):
                 angle = angle +180
             ax.text(x,y,l,ha='center',rotation=angle)

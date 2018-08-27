@@ -134,7 +134,7 @@ if __name__ == "__main__":
             # Convert this to a list. (Should I use a tuple instead?) and
             # check that it is the right length. There are occasional bad
             # lines in there!
-            barcode = [int(y) for y in barcode if y.isdigit()]
+            barcode = [float(y) for y in barcode if len(y) > 0]
             if (len(barcode) is not 2):
                 print "Bad Line: ",line
                 continue;

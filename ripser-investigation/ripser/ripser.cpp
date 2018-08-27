@@ -19,6 +19,12 @@
  * <http://www.gnu.org/licenses/>.
  */
 
+/* 
+ * NOTE: As originally deliered to me in the repo, this software had
+ * ZERO comments in it. Thus one can presume from this point forward
+ * that all comments were added by Matthew Daily
+ */
+
 /* #define MPD */
 /* #define ASSEMBLE_REDUCTION_MATRIX */
 #define PRINT_PERSISTENCE_PAIRS
@@ -77,7 +83,7 @@ public:
 };
 
 /*
- * This simply makees a table of multiplicative inverses in a finite
+ * This simply makes a table of multiplicative inverses in a finite
  * field which, for a F2, is 1-x
  */
 std::vector<coefficient_t> multiplicative_inverse_vector(const coefficient_t m) {
@@ -100,7 +106,7 @@ std::vector<coefficient_t> multiplicative_inverse_vector(const coefficient_t m) 
  *
  * What this does is find the value of v in v choose k such that v
  * choose k is less than or equal to idx and v+1 choose k is greater
- * than idx. It presumes that on input v choose k is >= idx on input.
+ * than idx. It presumes that on input v choose k is >= idx.
  */
 index_t get_next_vertex(index_t& v,
 			const index_t idx,
@@ -437,11 +443,14 @@ public:
   void init_rows();
 
   /* 
-   * This is a construcor when given a vector of distances. It sets
-   * the size from the length of the input vecotr, which is (I think)
-   * either lower or upper diagonal but we dont' care which becuase
+   * This is a constructor when given a vector of distances. It sets
+   * the size from the length of the input vector, which is (I think)
+   * either lower or upper diagonal but we don't care which because
    * the init_rows call, defined below for both possibiltiies of that,
    * will load properly we think.
+   * 
+   * I don't understand the rows initialization statement: where does
+   * "8" come from? Maybe this is right but it seems obfuscated. 
    */
   compressed_distance_matrix(std::vector<value_t>&& _distances)
     : distances(_distances), rows((1 + std::sqrt(1 + 8 * distances.size())) / 2) {
@@ -451,8 +460,9 @@ public:
 
   /* 
    * This is a constructor when initialized with a Distance Matrix,
-   * which is I think fully populated unlike above, when it is just
-   * lower (upper?) diagonal.
+   * which is I think fully populated unlike above, when it is
+   * just. Note that this compressed is just the lower diagonal
+   * without without the diagonal.
    */
   template <typename DistanceMatrix>
   compressed_distance_matrix(const DistanceMatrix& mat)
@@ -692,7 +702,9 @@ void assemble_columns_to_reduce(std::vector<diameter_index_t>& columns_to_reduce
   
   for (index_t index = 0; index < num_simplices; ++index) {
     auto temp = pivot_column_index.find(index);
-    std::cout << "<" << index << ":" << temp << ">\n";
+    std::cout << "<" << index <<
+      ":<" << temp->first <<
+      "," << temp->second << ">\n";
   }
 #endif
   
@@ -704,7 +716,7 @@ void assemble_columns_to_reduce(std::vector<diameter_index_t>& columns_to_reduce
     if (pivot_column_index.find(index) == pivot_column_index.end()) {
 
       /* 
-       * Get the dimaeter from the comparator (?) and if it is below
+       * Get the diamater from the comparator (?) and if it is below
        * threshold, add this to the columns to reduce
        */
       value_t diameter = comp.diameter(index);
@@ -1096,13 +1108,22 @@ void print_usage_and_exit(int exit_code) {
 /* Obviously the main routine ... */
 int main(int argc, char** argv) {
 
+  /* The input file name */
   const char* filename = nullptr;
 
+  /* 
+   * I set this to be LOWER_DISTANCE_MATRIX as per the documentation:
+   * as delivered it was DISTANCE_MATRIX contrary to the documentation
+   */
   file_format format = LOWER_DISTANCE_MATRIX;
 
+  /* The maximum dimension defaults to 1 */
   index_t dim_max = 1;
+
+  /* The threshold for the distance defaults to FLT_MAX */
   value_t threshold = std::numeric_limits<value_t>::max();
 
+  /* The finited field defaults to F2 */
   const coefficient_t modulus = 2;
 
   /* Parse the command line arguments according to the header */ 
@@ -1140,17 +1161,17 @@ int main(int argc, char** argv) {
     }
   }
 
-  /* 
-   * This opens the input file as a stream. I am so happy C++ decided
-   * to re-do the entire I/O syntax etc. What a farce!!
-   */
+  /* This opens the input file as a stream. */
   std::ifstream file_stream(filename);
   if (filename && file_stream.fail()) {
     std::cerr << "couldn't open file " << filename << std::endl;
     exit(-1);
   }
 
-  /* Read said file from either the input file stream or standard in */
+  /* 
+   * Read said file from either the input file stream or standard
+   * in. It returns compressed_distance_matrix
+   */
   compressed_lower_distance_matrix dist =
     read_file(filename ? file_stream : std::cin, format);
 
@@ -1189,11 +1210,13 @@ int main(int argc, char** argv) {
 	    << *value_range.first << ","
 	    << *value_range.second
 	    << "]" << std::endl;
-  dim_max = std::min(dim_max, n - 2);
 
-#ifdef MPD
-  std::cout << "Dim Max: " << dim_max << std::endl;
-#endif
+  /* 
+   * Important safety tip: because of the optimizations used here,
+   * which may or may no be related to cohomology, we can't go to
+   * simplices beyond n-2
+   */
+  dim_max = std::min(dim_max, n - 2);
 
   /* 
    * Creates the binomial coefficient bale, This gets passed by
@@ -1204,9 +1227,7 @@ int main(int argc, char** argv) {
   /* 
    * The multiplicative inverse is apparently either 0 or 1 as long as
    * we are working with modulo 2 math here, which I think is probably
-   * always case unles we are working in the "FINITE FIELD" thing. So
-   * let's obfuscate the bitwise or by putting the results in an
-   * object!!
+   * always case unles we are working in the "FINITE FIELD" thing.
    */
   std::vector<coefficient_t> multiplicative_inverse(multiplicative_inverse_vector(modulus));
 
@@ -1227,6 +1248,9 @@ int main(int argc, char** argv) {
      */
     union_find dset(n);
 
+#ifdef MPD_MORE
+#endif
+    
     /* 
      * A vector of diameter index types. and the comparator we are
      * going to use for something or the other.
@@ -1238,7 +1262,7 @@ int main(int argc, char** argv) {
      * This is where the edges are computed using the comparator above
      * (?). Again I find this obfuscating: is there any reason at all
      * that we can't just do a double loop computing distances and
-     * pushing them ito the stack?
+     * pushing them into the stack?
      */
     for (index_t index = binomial_coeff(n, 2); index-- > 0;) {
       value_t diameter = comp.diameter(index);
@@ -1248,13 +1272,13 @@ int main(int argc, char** argv) {
 	      edges.rend(),
 	      greater_diameter_or_smaller_index<diameter_index_t>());
 
-#ifdef MPD_MORE
+#ifdef MPD
     {
       std::cout << "Edges: " << std::endl << std::endl;
-      for (auto e : edges) {
-	std::cout << "<" << get_index(e) << "," << get_diameter(e) << "> ";
-	if (get_index(e)%8 == 7) std::cout << std::endl;
-      }
+      for (auto e : edges)
+	std::cout <<
+	  "   <" << get_index(e) << "," << get_diameter(e) << ">\n";
+      std::cout << std::endl;
     }
 #endif
 
@@ -1268,9 +1292,9 @@ int main(int argc, char** argv) {
       get_simplex_vertices(get_index(e), 1, n,
 			   binomial_coeff,
 			   std::back_inserter(vertices_of_edge));
-#ifdef MPD_MORE
+#ifdef MPD
       std::cout << "E<" << get_index(e) << "," << get_diameter(e) <<
-	"> has " << vertices_of_edge.size() << " vertices: " << std::endl;
+	"> has " << vertices_of_edge.size() << " vertices: ";
       std::cout << "("
 		<< vertices_of_edge[0] << ","
 		<< vertices_of_edge[1] << ")\n";
@@ -1289,16 +1313,14 @@ int main(int argc, char** argv) {
     }
 
 
-    /* THese are the columns sorted in increasing diameter order */
-#ifdef MPD_MORE
+    /* These are the columns sorted in increasing diameter order */
+#ifdef MPD
     {
       int count = 0;
       std::cout << "Columns to reduce: " << std::endl;
       
-      for (auto d : columns_to_reduce) {
-	std::cout << "<" << d.first << "," << d.second << "> ";
-        if ((++count)%8 == 7) std::cout << std::endl;
-      }
+      for (auto d : columns_to_reduce)
+	std::cout << "  <" << d.first << "," << d.second << ">\n";
       std::cout << std::endl;
     }
 #endif
