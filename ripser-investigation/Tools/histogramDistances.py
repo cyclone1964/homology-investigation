@@ -29,7 +29,7 @@ if __name__ == "__main__":
     for line in lines:
         words = line.split(',')
         words = words[0:-1]
-        temp = [int(word) for word in words]
+        temp = [float(word) for word in words]
         distances = distances + temp
 
     print "Read ",len(distances)," distances"

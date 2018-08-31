@@ -101,7 +101,7 @@ def saveLowerDistanceMatrix(fileName, points):
 def savePoints(fileName, points):
     size = points.shape
     numPoints = size[1]
-    file = open(fileName + ".dat",'w')
+    file = open('../Output/' + fileName + ".dat",'w')
     print 'Save File: ',file.name
     for index in xrange(numPoints):
         file.write(repr(points[0,index])+' '+
@@ -179,7 +179,7 @@ if __name__ == "__main__":
     # balls are separated by 1, 2, 4, and 8 stddev
     numPointsPerBall = 32
     for ballSeparationIndex in range(4):
-        separation = 4 ** ballSeparationIndex
+        separation = 2 * ballSeparationIndex
         print 'Separation: ',separation
         points = np.zeros((3,3*3*3*numPointsPerBall))
 

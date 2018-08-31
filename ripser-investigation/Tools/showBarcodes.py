@@ -36,20 +36,21 @@ def plotBarcodes(name,barcodes,dimension):
     fig, ax = plt.subplots()
     for index in range(len(barcodes)):
         ax.plot(barcodes[index],[index, index])
-    ax.set_title("Dimension: " + dimension)
-    plt.savefig(sys.argv[1] + "-barcodes-" + dimension + ".png")
+    ax.set_title(name + " Dimension: " + dimension)
+    plt.savefig(name + "-barcodes-" + dimension + ".png")
 
 # This function plots a histogram of the starting and ending distance for
 # the current dimension.
 def plotEndpoints(name,barCodes,dimension):
     print "Plot", len(barCodes), "histograms"
 
+    startPoints = [barCodes[i][0] for i in xrange(len(barCodes))]
     endPoints = [barCodes[i][1] for i in xrange(len(barCodes))]
     lengths = [(barCodes[i][1] - barCodes[i][0]) for i in xrange(len(barCodes))]
 
     fig, ax = plt.subplots()
     ax.plot(lengths, endPoints,'.')
-    ax.set_title("Dimension " + dimension)
+    ax.set_title(name + " Dimension: " + dimension)
     plt.xlabel('Barcode Length')
     plt.ylabel('Barcode Endpoint')
     plt.savefig(name +"-endpoints-" + dimension + ".png")
@@ -63,10 +64,7 @@ def plotEndpoints(name,barCodes,dimension):
     fix, ax = plt.subplots()
     plt.hist(endPoints,128)
     
-    ax.set_title("Dimension:" + dimension +
-                 " Anderson(" + str(round(normResults[0],3)) + "," +
-                 str(round(normResults[1][0],3)) + "," +
-                 str(round(normResults[2][0],3)) + ")")
+    ax.set_title(name + " Dimension:" + dimension)
     plt.xlabel('Barcode Endpoint')
     plt.ylabel('Count')
     plt.draw()
@@ -75,13 +73,21 @@ def plotEndpoints(name,barCodes,dimension):
     # Now, let's do a histogram of the lengths
     ax.clear()
     ax.hist(lengths,128)
-    ax.set_title("Dimension: " + dimension)
+    ax.set_title(name + " Dimension: " + dimension)
     plt.xlabel('Barcode Length')
     plt.ylabel('Count')
     plt.draw()
     plt.savefig(name + "-length-histogram-" + dimension + ".png")
     
-
+    # Now let's plot the lengths .vs. the starting point
+    ax.clear()
+    plt.plot(endPoints, lengths, 'k.')
+    plt.xlabel('Barcode Endpoint');
+    plt.ylabel('Barcode Length')
+    ax.set_title(name + " Dimension: " + dimension)
+    plt.draw()
+    plt.savefig(name + "-end-length-" + dimension + ".png")
+    
 # The main function that opens the input file, which is it's only
 # argument, and is assumed to be the catted output of a ripser run. It
 # parses the lines looking for dimension prints (which define new
@@ -93,6 +99,11 @@ if __name__ == "__main__":
     lines = file.readlines()
     file.close()
 
+    # Get the root of the filename as the annotation for the plots and
+    # their output files
+    temp = sys.argv[1].split('.')
+    name = temp[0]
+    
     # Initialize the list of barcodes to empty
     barcodes = []
     allBarCodes = []
@@ -110,8 +121,8 @@ if __name__ == "__main__":
             # If we already have barcodes, then we need to make a new
             # axes, plot them, and show the axes
             if (len(barcodes) > 0):
-                plotBarcodes(sys.argv[1],barcodes,dimension)
-                plotEndpoints(sys.argv[1],barcodes,dimension)
+                plotBarcodes(name,barcodes,dimension)
+                plotEndpoints(name,barcodes,dimension)
                 allBarCodes.append(barcodes)
 
             # In any event, initialize new barcodes and starting point
@@ -144,7 +155,7 @@ if __name__ == "__main__":
 
 
     allBarCodes.append(barcodes)
-    plotBarcodes(sys.argv[1],barcodes,dimension)
-    plotEndpoints(sys.argv[1],barcodes,dimension)
+    plotBarcodes(name,barcodes,dimension)
+    plotEndpoints(name,barcodes,dimension)
     
 
