@@ -1,0 +1,21 @@
+Consider finding how quickly we can find an optimal cluster radius for
+another clustering algroithm (k-means, entropy search).
+
+Go code for ES protein structure search. Big data set.
+
+Put them on the surface of the tube
+
+Tree variant ... I can do this. He has an example.
+
+asymptote - vector graphics (sourceforge.net)
+
+Meandering data set with variable density
+
+Empirically benchmare Entropy Scaling Search for improvement over
+linear search.
+
+Get the optimal cluster radius from the barcodes, compare to a grid
+search based optimization.
+
+Do this for different data sets, thickness, densities, etc.
+

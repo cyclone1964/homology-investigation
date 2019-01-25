@@ -5,6 +5,9 @@
 #
 # I may add more options as time goes on
 
+# Used to split lines
+import os
+
 # We use re for parsing of the lines
 import re
 
@@ -57,8 +60,6 @@ def plotEndpoints(name,barCodes,dimension):
 
     # Now, let's do an Anderson-Wilke test against a normal distribution
     temp = (endPoints - numpy.mean(endPoints))/math.sqrt(numpy.var(endPoints))
-    normResults = stats.anderson(temp,'norm');
-    print normResults
 
     # Plot the histogram as a bar plot
     fix, ax = plt.subplots()
@@ -101,8 +102,8 @@ if __name__ == "__main__":
 
     # Get the root of the filename as the annotation for the plots and
     # their output files
-    temp = sys.argv[1].split('.')
-    name = temp[0]
+    name = os.path.splitext(sys.argv[1])
+    name = name[0]
     
     # Initialize the list of barcodes to empty
     barcodes = []
