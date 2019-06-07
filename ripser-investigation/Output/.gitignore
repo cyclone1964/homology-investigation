@@ -1,4 +1,5 @@
 *.fasta
+*.ldm
 *.lower_distance_matrix
 *.ripser
 *~

@@ -1,0 +1,7 @@
+Idea for research idea
+
+Talk about the onehots distance metric messing wth our results
+
+Talk about using ML to determine optimal cluster radius by training it
+with generated data.
+

@@ -35,7 +35,7 @@ import matplotlib.pyplot as plt
 # It plots the barcodes and then saves the plot to a file. 
 def plotBarcodes(name,barcodes,dimension):
 
-    print "Plot ",len(barcodes), " barcodes"
+    print("Plot ",len(barcodes), " barcodes")
     fig, ax = plt.subplots()
     for index in range(len(barcodes)):
         ax.plot(barcodes[index],[index, index])
@@ -45,11 +45,11 @@ def plotBarcodes(name,barcodes,dimension):
 # This function plots a histogram of the starting and ending distance for
 # the current dimension.
 def plotEndpoints(name,barCodes,dimension):
-    print "Plot", len(barCodes), "histograms"
+    print("Plot", len(barCodes), "histograms")
 
-    startPoints = [barCodes[i][0] for i in xrange(len(barCodes))]
-    endPoints = [barCodes[i][1] for i in xrange(len(barCodes))]
-    lengths = [(barCodes[i][1] - barCodes[i][0]) for i in xrange(len(barCodes))]
+    startPoints = [barCodes[i][0] for i in range(len(barCodes))]
+    endPoints = [barCodes[i][1] for i in range(len(barCodes))]
+    lengths = [(barCodes[i][1] - barCodes[i][0]) for i in range(len(barCodes))]
 
     fig, ax = plt.subplots()
     ax.plot(lengths, endPoints,'.')
@@ -148,7 +148,7 @@ if __name__ == "__main__":
             # lines in there!
             barcode = [float(y) for y in barcode if len(y) > 0]
             if (len(barcode) is not 2):
-                print "Bad Line: ",line
+                print("Bad Line: ",line)
                 continue;
         
             # Add this to the end of the barcodes list

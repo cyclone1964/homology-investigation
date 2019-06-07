@@ -27,7 +27,7 @@
  *
  * This program attempts to compute the distance between them by
  * counting how many of those match. This is done by onehot encoding
- * them, storing them as bitfields, and then doing bitwise and (&&) of the
+ * them, storing them as bitfields, and then doing bitwise and (&) of the
  * result and counting the matches. The A, T, C, G, and "other" are
  * encoded in fields of 0x10000, 0x01000, 0x00100, 0x00010, and
  * 0x00001 and pushed into 32 bit words for each species.
@@ -35,6 +35,18 @@
  * These are then used to compute distance by counting the number of
  * times they have 1 in the same place (which is matches) and
  * subtracting that from the overall alignment length.
+ *
+ * Usage:
+ *
+ * createLowerDistanceMatrix <--regexp string> <--stride #> input_file
+ *
+ * where
+ *
+ * string is a regular expressions. If provided, only sequences with
+ * names matching the regular expression will be included
+ *
+ * # is an integer constant: the input is strided by this number, thus
+     reducing the size of the file.
  */
 #include <stdio.h>
 #include <regex.h>
