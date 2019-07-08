@@ -66,4 +66,3 @@ for Index = 1:Count
     % pain in the rear end.
     Points(:,Index) =  Triangle * rand(3,1);
 end
-
