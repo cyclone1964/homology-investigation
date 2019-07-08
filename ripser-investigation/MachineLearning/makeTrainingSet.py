@@ -347,7 +347,7 @@ if __name__ == "__main__":
                 points = shape.getPoints(numPoints);
                 file = open('../Output/MachineLearning/' +
                             names[shapeIndex] +
-                            repr(shapeIndex) + '.dat','w')
+                            repr(count) + '.dat','w')
                 for index in range(points.shape[1]):
                     file.write(repr(points[0,index]) + ', ' +
                                repr(points[1,index]) + ', ' +
@@ -357,7 +357,7 @@ if __name__ == "__main__":
                 # ... and then writing the LDM file ...
                 file = open('../Output/MachineLearning/' +
                             names[shapeIndex] +
-                            repr(shapeIndex) + '.ldm','w')
+                            repr(count) + '.ldm','w')
             
                 for firstIndex in range(points.shape[1]):
                     for secondIndex in range(firstIndex):
