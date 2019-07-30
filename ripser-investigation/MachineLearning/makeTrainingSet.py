@@ -178,10 +178,53 @@ class TesselatedShape:
                 # IF they are all positive, we are in the triangle
                 if (u >= 0 and v >= 0 and w >=0) :
                     break
+
             # Store this point and go to the next
             points[:,pointIndex] = point
-        return points
+            faceIndices[pointIndex] = faceIndex
+        return [points, faceIndices]
+
+# It is often useful to convert a tesselation of quadrilaterals into a
+# tesselation of triangles. It is even more useful (for me) if
+# the tesselation of quadrilaterals is represented as a matrix the way
+# that MATLAB does it. This function does that
+
+def tesselateMatrix(X, Y, Z):
+
+    # The number of faces is twice the number of quadrilaterals
+    numFaces = 2 * (X.shape[0]-1)*(X.shape[1]-1)
+    faces = np.zeros([3,numFaces])
+    vertices = np.array(np.zeros((3,X.size)))
+
+    for index in range(X.shape[0]):
+        vertexIndices = (index * X.shape[1] +
+                         np.arange(X.shape[1])).astype(int)
+        temp = np.concatenate((X[index,:],
+                               Y[index,:],
+                               Z[index,:]),0);
+        temp.shape = (3,X.shape[1])
+
+        for index2 in range(3):
+            vertices[index2,vertexIndices] = temp[index2,:]
+
+        # Now, we need to set up the triangulation
+        if (index < X.shape[0]-1):
+
+            # These are the upper triangles ...
+            indices = (2 * index * (X.shape[1]-1) +
+                       np.arange(X.shape[1]-1)).astype(int)
+            faces[0,indices] = vertexIndices[0:-1]
+            faces[1,indices] = vertexIndices[1:]
+            faces[2,indices] = vertexIndices[0:-1] + X.shape[1]
             
+            # And these the lower
+            indices = ((2 * index + 1) * (X.shape[1]-1) +
+                       np.arange(X.shape[1]-1)).astype(int)
+            faces[0,indices] = vertexIndices[1:]
+            faces[1,indices] = vertexIndices[0:-1] + X.shape[1]
+            faces[2,indices] = vertexIndices[1:] + X.shape[1]    
+    return [faces, vertices]
+
 # Now this class inherits from the one above, but implements a
 # cylinder similarly to the way that MATLAB does.  It starts by
 # setting up a set of quadrilaterals then doing the triangulization
@@ -208,39 +251,8 @@ class Cylinder(TesselatedShape):
             Y[index,:] = radius[index] * np.sin(angles)
             Z[index,:] = index/(numRadii-1)
         
-        # Now, having done that, we have to convert that to vertices and faces.
-        vertices = np.array(np.zeros((3,X.size)))
-
-        # The number of faces is twice the number of quadrilaterals
-        numFaces = 2 * (X.shape[0]-1)*(X.shape[1]-1)
-        faces = np.zeros([3,numFaces])
-        for index in range(numRadii):
-            vertexIndices = (index * X.shape[1] +
-                             np.arange(X.shape[0])).astype(int)
-            temp = np.concatenate((X[index,:],
-                                   Y[index,:],
-                                   Z[index,:]),0);
-            temp.shape = (3,X.shape[1])
-            for index2 in range(3):
-                vertices[index2,vertexIndices] = temp[index2,:]
-
-            # Now, we need to set up the triangulation
-            if (index < numRadii-1):
-
-                # These are the upper triangles ...
-                indices = (2 * index * (X.shape[1]-1) +
-                           np.arange(X.shape[1]-1)).astype(int)
-                faces[0,indices] = vertexIndices[0:-1]
-                faces[1,indices] = vertexIndices[1:]
-                faces[2,indices] = vertexIndices[0:-1] + X.shape[1]
-
-                # And these the lower
-                indices = ((2 * index + 1) * (X.shape[1]-1) +
-                           np.arange(X.shape[1]-1)).astype(int)
-                faces[0,indices] = vertexIndices[1:]
-                faces[1,indices] = vertexIndices[0:-1] + X.shape[1]
-                faces[2,indices] = vertexIndices[1:] + X.shape[1]
-
+        [faces, vertices] = tesselateMatrix(X,Y,Z)
+        
         # Invoke the initializer for the super class (I think)
         TesselatedShape.__init__(self,faces,vertices)
 
@@ -248,7 +260,7 @@ class Cylinder(TesselatedShape):
 # to generate a sphere. 
 class Sphere(Cylinder):
 
-    def __init__(self,radius,numPoints=20):
+    def __init__(self,radius=1,numPoints=20):
 
         # For a sphere, the radius of the cylinder varies as the length
         # along it. So we set the radius as if we are drawing a circle
@@ -284,6 +296,51 @@ class Cube(TesselatedShape):
                           [3,6,7]]).astype(int)
         TesselatedShape.__init__(self,np.transpose(faces),vertices)
 
+# This makes two nested spheres
+class NestedSpheres(TesselatedShape):
+
+    # Default is two nested spheres
+    def __init__(self, radii=[1., 2.]):
+
+        for index in range(sideLengths.size):
+            sphere = Sphere(radii[index])
+            if (index == 0):
+                faces = sphere.faces
+                vertices = sphere.vertices
+            else:
+                faces = numpy.concatenate((faces, sphere.faces))
+                vertices = numpy.concatenate((vertices,
+                                              sphere.vertices+vertices.shape[1]))
+        TesselatedShape.__init__(self,faces, vertices)
+
+# This makes a torus with tube radius and donut radius defined
+class Torus(TesselatedShape):
+
+    def __init__(self,
+                 circleRadius = 0.1,
+                 revolutionRadius=0.9,
+                 numCircleAngles =16,
+                 numRevolutionAngles = 32):
+
+        X = np.zeros((numCircleAngles, numRevolutionAngles))
+        Y = np.zeros((numCircleAngles, numRevolutionAngles))
+        Z = np.zeros((numCircleAngles, numRevolutionAngles))
+
+        circleAngles = np.linspace(0,2*np.pi,num=numCircleAngles)
+        revolutionAngles = np.linspace(0,2*np.pi,num=numRevolutionAngles)
+        revolutionRadii = revolutionRadius + circleRadius * np.cos(circleAngles)
+
+        for index1 in range(numCircleAngles):
+            for index2 in range(numRevolutionAngles):
+                X[index1,index2] = revolutionRadii[index1]*np.cos(revolutionAngles[index2])
+                Y[index1,index2] = revolutionRadii[index1]*np.sin(revolutionAngles[index2])
+                Z[index1,index2] = circleRadius * np.sin(circleAngles[index1])
+
+        [faces, vertices] = tesselateMatrix(X,Y,Z)
+        TesselatedShape.__init__(self,faces, vertices)
+
+    
+        
 # This is the main 
 if __name__ == "__main__":
 
@@ -293,7 +350,7 @@ if __name__ == "__main__":
     if (test == 1):
 
         # Make a shape and get some points
-        shape = Cube()
+        shape = Sphere()
         [points, indices] = shape.getPoints(100)
 
         # Make a figure and a 3D axis
@@ -311,7 +368,6 @@ if __name__ == "__main__":
             indices = shape.faces[:,index]
             trianglePoints[index,:,0:3] = shape.vertices[:,shape.faces[:,index]]
             trianglePoints[index,:,3] = trianglePoints[index,:,0]
-            print(trianglePoints)
 
             # Plot this triangle
             ax.plot(trianglePoints[index,0,:],
@@ -324,48 +380,53 @@ if __name__ == "__main__":
     # Otherwise, let's make the training data.
     else:
 
-        # WE make 500 of each and 64 points on each shape. WE choose
-        # 64 so that ripser can run well.
+        # We make 1000 totoal shapes, each and 64 points on each
+        # shape. WE choose 64 so that ripser can run well.
         numPoints = 64
-        numShapes = 500
+        numShapes = 1000
 
-        # The two shapes we are making and the names for the files
-        shapes = [Sphere(1), Cube()]
-        names = ['Sphere','Cube']
+        shapes = []
+        shapes.append(Sphere())
+        shapes.append(Cube())
+        shapes.append(Torus())
+
+        # Open the label file
+        labelFile = open('../Output/MachineLearning/Labels.dat','w') 
 
         # For each shape type ...
-        for shapeIndex in range(2):
-            shape = shapes[shapeIndex]
-            print('\n',names[shapeIndex])
+        for count in range(numShapes):
+            typeIndex = np.random.randint(len(shapes))
+            shape = shapes[typeIndex]
+            print('Shape: ',count,' Type ',typeIndex)
+            sys.stdout.flush()
 
-            # ... make the specified number of files ...
-            for count in range(numShapes):
-                print(count,end=' ')
-                sys.stdout.flush()
+            # .. by getting the points and writing them to the .dat file ...
+            [points, Indices] = shape.getPoints(numPoints);
+            shapeFile = open('../Output/MachineLearning/Shape' +
+                        repr(count) + '.dat','w')
+            for index in range(points.shape[1]):
+                shapeFile.write(repr(points[0,index]) + ', ' +
+                                repr(points[1,index]) + ', ' +
+                                repr(points[2,index]) + '\n');
+            shapeFile.close()
 
-                # .. by getting the points and writing them to the .dat file ...
-                points = shape.getPoints(numPoints);
-                file = open('../Output/MachineLearning/' +
-                            names[shapeIndex] +
-                            repr(count) + '.dat','w')
-                for index in range(points.shape[1]):
-                    file.write(repr(points[0,index]) + ', ' +
-                               repr(points[1,index]) + ', ' +
-                               repr(points[2,index]) + '\n');
-                file.close()
+            # ... and then writing the LDM file ...
+            ldmFile = open('../Output/MachineLearning/Shape' +
+                              repr(count) + '.ldm','w')
+            ldmfFile = open('../Output/MachineLearning/Shape' +
+                            repr(count) + '.ldmf','w')
 
-                # ... and then writing the LDM file ...
-                file = open('../Output/MachineLearning/' +
-                            names[shapeIndex] +
-                            repr(count) + '.ldm','w')
             
-                for firstIndex in range(points.shape[1]):
-                    for secondIndex in range(firstIndex):
-                        distance = np.linalg.norm(points[:,firstIndex] -
-                                                  points[:,secondIndex])
-                        file.write(repr(distance) + ',')
-                    file.write('\n')
-                file.close()
-        
-        
+            for firstIndex in range(points.shape[1]):
+                for secondIndex in range(firstIndex):
+                    distance = np.linalg.norm(points[:,firstIndex] -
+                                              points[:,secondIndex])
+                    ldmFile.write(repr(distance) + ',')
+                    ldmfFile.write(repr(distance) + '\n')
+                ldmFile.write('\n')
+            ldmFile.close()
+            ldmfFile.close()
+            
+            # Write the label
+            labelFile.write(repr(typeIndex)+'\n')
     
