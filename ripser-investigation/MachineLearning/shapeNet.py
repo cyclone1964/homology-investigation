@@ -12,6 +12,7 @@
 # The data set and data loader support
 import os
 import re
+import sys
 import math
 import torch
 import numpy as np
@@ -30,7 +31,7 @@ else:
 # This defines the number of points (in 3 space) for these shapes.
 # This is hard coded into the data sets.
 numPoints = 64
-numClasses = 3
+numClasses = 2
 numDimensions = 3
 numDistances = 2016
 
@@ -111,22 +112,18 @@ class ShapeNet(nn.Module):
                             numDistances),
             torch.nn.ReLU(),
             torch.nn.Linear(numDistances,
-                            numPoints * numClasses),
-            torch.nn.ReLU(),
-            torch.nn.Linear(numPoints * numClasses,
                             numClasses),
-            torch.nn.Softmax(dim=2)
         )
             
-    # Now the forward propgation. This runs the front end, then feeds
+    # Now the forward propagation. This runs the front end, then feeds
     # the output of that to the range and frequency nets, concatenates
     # them, and makes the output.
     def forward(self, x):
         
         # First, lets do the three sets of convolutions
         y = self.model(x)
-        torch.reshape(y,(y.shape[0],y.shape[2]))
         return y
+
 
 # Set up the data set
 dataDir = '../Output/MachineLearning'
@@ -138,34 +135,85 @@ validationSet = ShapeDataset(dataDir,partition = 'validate')
 trainingLoader = DataLoader(trainingSet,batch_size = 20)
 validationLoader = DataLoader(validationSet,batch_size = 20)
 
-# Create the simpleNet, insuring that it is implemented in floats not
-# doubles since it runs faster.
+
+# Now, if there is a checkpoint file provided, load that and re-start.
+# Otherwise, reinitialize the model and statistics from scratch
 model = ShapeNet().float()
 model = model.to(device)
-
-# Use simple SGD to start
 lossFunction = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(model.parameters(),lr=1e-1)
+optimizer = torch.optim.SGD(model.parameters(), lr = 1e-2)
+optimizer.zero_grad()
 
-epoch = 0
-losses = []
-valPerformance = []
-trainPerformance = []
+if len(sys.argv) > 1:
+    fileName = sys.argv[1]
+    print(' Load Checkpoint: ',fileName)
+    if (torch.cuda.is_available()):
+        checkpoint = torch.load(fileName)
+    else:
+        checkpoint = torch.load(fileName,map_location = "cpu")
+        
+    # Now extract the things from the dicionary
+    epoch = checkpoint['epoch']
+    model.load_state_dict(checkpoint['state_dict'])
+    optimizer.load_state_dict(checkpoint['optimizer'])
+    losses = checkpoint['losses']
+    if ('valPerformance' in checkpoint):
+        valPerformance = checkpoint['valPerformance']
+    else:
+        valPerformance = []
+
+    if ('trainPerformance' in checkpoint):
+        trainPerformance = checkpoint['trainPerformance']
+    else:
+        trainPerformance = []
+else:
+
+    # Create the simpleNet, insuring that it is implemented in floats not
+    # doubles since it runs faster.
+    print(' Initialize New Run: ',fileName)
+    epoch = 0
+    losses = []
+    valPerformance = []
+    trainPerformance = []
+
     
+# Use simple SGD to start
+
 # Now do up to 2000 epochs
-while (epoch < 2000):
+while (epoch < 100):
 
     # For all the batches
+    
     numTotal = 0
     numCorrect = 0
+    print(' Epoch :',epoch)
+    if (epoch == 40):
+        print ('New LR 1e-3')
+        optimizer = torch.optim.SGD(model.parameters(), lr = 1e-3)
+    elif (epoch == 60):
+        print ('New LR 1e-4')
+        optimizer = torch.optim.SGD(model.parameters(), lr = 1e-4)
+    elif (epoch == 80):
+        print ('New LR 1e-5')
+        optimizer = torch.optim.SGD(model.parameters(), lr = 1e-5)
+    elif (epoch == 90):
+        print ('New LR 1e-6')
+        optimizer = torch.optim.SGD(model.parameters(), lr = 1e-6)
+
+        
+    
     for X_batch, y_batch in trainingLoader:
 
         # Send them to the cuda device if we are using one
         X_batch = X_batch.to(device)
         y_batch = y_batch.to(device)
         
+        # Zero the parameter gradients
+        optimizer.zero_grad()
+        
         # Do the prediction and add the loss
         y_pred = torch.squeeze(model.forward(X_batch))
+        predClass = torch.argmax(y_pred,dim=1)
         loss = lossFunction(y_pred, y_batch)
 
         # Append the loss for this to the list
@@ -174,16 +222,11 @@ while (epoch < 2000):
         # Back propagate
         loss.backward()
         optimizer.step()
-        optimizer.zero_grad()
-        
-        predClass = torch.argmax(y_pred,dim=1)
 
         #  The mode is correct iff the bin values match
         states = (torch.eq(predClass,y_batch)).cpu().numpy()
         numTotal += states.shape[0]
         numCorrect += np.sum(np.where(states,1,0))
-
-    # Now, the first time through , we have to have an extra 
     trainPerformance.append(float(numCorrect)/float(numTotal))
     
     # Now let us do the validation
@@ -194,30 +237,31 @@ while (epoch < 2000):
         X_val = X_val.to(device)
         y_val = y_val.to(device)
         y_pred = torch.squeeze(model.forward(X_val))
-
         predClass = torch.argmax(y_pred,dim=1)
-        
+
         #  The mode is correct iff the bin values match
         states = (torch.eq(predClass,y_val)).cpu().numpy()
-        numCorrect += np.sum(np.where(states,1,0))
         numTotal += states.shape[0]
-
-    # Add this to the performance numbers
+        numCorrect += np.sum(np.where(states,1,0))
     valPerformance.append(float(numCorrect)/float(numTotal))
-    
-    # Now, every 1000 or so, we save a checkpoint so that we can
-    # restart from there.
-    fileName = 'CheckPoint-' + str(epoch) +'.pth'
-    state = {'epoch': epoch,
-             'losses': losses,
-             'trainPerformance':trainPerformance, 
-             'valPerformance':valPerformance, 
-             'state_dict' : model.state_dict(),
-             'optimizer': optimizer.state_dict()}
-    torch.save(state,fileName)
-    print('Saved Checkpoint ',fileName,
+
+    print('Tested Performance: ',
           ' train: ',trainPerformance[-1],
-          ' val:',valPerformance[-1])
+          ' val:',valPerformance[-1],
+          ' ',numCorrect,'/',numTotal)
+
+    # Now, every so many, we save a checkpoint so that we can
+    # restart from there.
+    if (epoch % 10 == 9):
+        fileName = 'CheckPoint-' + str(epoch) +'.pth'
+        state = {'epoch': epoch,
+                 'losses': losses,
+                 'trainPerformance':trainPerformance, 
+                 'valPerformance':valPerformance, 
+                 'state_dict' : model.state_dict(),
+                 'optimizer': optimizer.state_dict()}
+        torch.save(state,fileName)
+        print('Saved Checkpoint ',fileName)
 
     # Next epoch please
     epoch = epoch + 1

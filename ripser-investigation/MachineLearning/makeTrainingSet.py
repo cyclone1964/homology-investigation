@@ -1,4 +1,4 @@
-# This program is designe to generate .dat and .ldm files to test the
+# This program is designed to generate .dat and .ldm files to test the
 # application of persistent homology to the classification of 3-D
 # objects. Specifically, it generates two classes of objects:
 # spheres and cubes
@@ -273,7 +273,7 @@ class Sphere(Cylinder):
 # And this makes a cube using brute force
 class Cube(TesselatedShape):
 
-    def __init__(self,sideLengths=[1.,1.,1.]):
+    def __init__(self,sideLengths=[2.,2.,2.]):
 
         # The vertices are simply the 8 points of the box
         x = sideLengths[0]/2
@@ -383,12 +383,12 @@ if __name__ == "__main__":
         # We make 1000 totoal shapes, each and 64 points on each
         # shape. WE choose 64 so that ripser can run well.
         numPoints = 64
-        numShapes = 1000
+        numShapes = 5000
 
         shapes = []
         shapes.append(Sphere())
         shapes.append(Cube())
-        shapes.append(Torus())
+        # shapes.append(Torus())
 
         # Open the label file
         labelFile = open('../Output/MachineLearning/Labels.dat','w') 
@@ -415,8 +415,6 @@ if __name__ == "__main__":
                               repr(count) + '.ldm','w')
             ldmfFile = open('../Output/MachineLearning/Shape' +
                             repr(count) + '.ldmf','w')
-
-            
             for firstIndex in range(points.shape[1]):
                 for secondIndex in range(firstIndex):
                     distance = np.linalg.norm(points[:,firstIndex] -
@@ -429,4 +427,3 @@ if __name__ == "__main__":
             
             # Write the label
             labelFile.write(repr(typeIndex)+'\n')
-    
