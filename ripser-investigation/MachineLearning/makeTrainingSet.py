@@ -344,86 +344,57 @@ class Torus(TesselatedShape):
 # This is the main 
 if __name__ == "__main__":
 
-    # This variable will enable the plotting of a shape below for
-    # debugging purposes.
-    test = 0
-    if (test == 1):
+    # We make 1000 totoal shapes, each and 64 points on each
+    # shape. WE choose 64 so that ripser can run well.
+    numPoints = 64
+    numShapes = 5000
 
-        # Make a shape and get some points
-        shape = Sphere()
-        [points, indices] = shape.getPoints(100)
+    shapes = []
+    shapes.append(Sphere())
+    shapes.append(Cube())
+    shapes.append(Torus())
 
-        # Make a figure and a 3D axis
-        fig = plt.figure()
-        ax = fig.add_subplot(111,projection = '3d')
+    if (sys.argc > 1):
+        numClasses = int(sys.argv[1])
+        if (numClasses < 0 or numClasses > shapes.size):
+            print('Unsupported number of classes: ', numClasses)
+            sys.exit()
+        shapes = shapes[:numClasses]
 
-        # Now plot all the triangles.
-        #
-        # Important safety tip. You can't modify arguments you pass to
-        # plot because it does NOT make deep copies (I guess), thus I
-        # have to keep all these triangle points around. That is NUTS!!
-        numTriangles = shape.faces.shape[1]
-        trianglePoints = np.zeros((numTriangles,3,4))
-        for index in range(shape.faces.shape[1]):
-            indices = shape.faces[:,index]
-            trianglePoints[index,:,0:3] = shape.vertices[:,shape.faces[:,index]]
-            trianglePoints[index,:,3] = trianglePoints[index,:,0]
+    # Open the label file
+    outputDirectory = '../Output/MachineLearning/ThreeClass'
+    labelFile = open(outputDirectory + '/Labels.dat','w') 
+    
+    # For each shape type ...
+    for count in range(numShapes):
+        typeIndex = np.random.randint(len(shapes))
+        shape = shapes[typeIndex]
+        print('Shape: ',count,' Type ',typeIndex)
+        sys.stdout.flush()
 
-            # Plot this triangle
-            ax.plot(trianglePoints[index,0,:],
-                    trianglePoints[index,1,:],
-                    trianglePoints[index,2,:],'k')
-        ax.scatter(points[0,:],points[1,:],points[2,:],'b');
-        plt.show()
+        # .. by getting the points and writing them to the .dat file ...
+        [points, Indices] = shape.getPoints(numPoints);
+        shapeFile = open(outputDirectory + '/Shape' +
+                         repr(count) + '.dat','w')
+        for index in range(points.shape[1]):
+            shapeFile.write(repr(points[0,index]) + ', ' +
+                            repr(points[1,index]) + ', ' +
+                            repr(points[2,index]) + '\n');
+        shapeFile.close()
 
-
-    # Otherwise, let's make the training data.
-    else:
-
-        # We make 1000 totoal shapes, each and 64 points on each
-        # shape. WE choose 64 so that ripser can run well.
-        numPoints = 64
-        numShapes = 5000
-
-        shapes = []
-        shapes.append(Sphere())
-        shapes.append(Cube())
-        # shapes.append(Torus())
-
-        # Open the label file
-        labelFile = open('../Output/MachineLearning/Labels.dat','w') 
-
-        # For each shape type ...
-        for count in range(numShapes):
-            typeIndex = np.random.randint(len(shapes))
-            shape = shapes[typeIndex]
-            print('Shape: ',count,' Type ',typeIndex)
-            sys.stdout.flush()
-
-            # .. by getting the points and writing them to the .dat file ...
-            [points, Indices] = shape.getPoints(numPoints);
-            shapeFile = open('../Output/MachineLearning/Shape' +
-                        repr(count) + '.dat','w')
-            for index in range(points.shape[1]):
-                shapeFile.write(repr(points[0,index]) + ', ' +
-                                repr(points[1,index]) + ', ' +
-                                repr(points[2,index]) + '\n');
-            shapeFile.close()
-
-            # ... and then writing the LDM file ...
-            ldmFile = open('../Output/MachineLearning/Shape' +
-                              repr(count) + '.ldm','w')
-            ldmfFile = open('../Output/MachineLearning/Shape' +
-                            repr(count) + '.ldmf','w')
-            for firstIndex in range(points.shape[1]):
-                for secondIndex in range(firstIndex):
-                    distance = np.linalg.norm(points[:,firstIndex] -
-                                              points[:,secondIndex])
-                    ldmFile.write(repr(distance) + ',')
-                    ldmfFile.write(repr(distance) + '\n')
+        # ... and then writing the LDM file ...
+        ldmFile = open(outputDirectory + '/Shape' + repr(count) + '.ldm','w')
+        ldmfFile = open(outputDirectory + '/Shape' + repr(count) + '.ldmf','w')
+        for firstIndex in range(points.shape[1]):
+            for secondIndex in range(firstIndex):
+                distance = np.linalg.norm(points[:,firstIndex] -
+                                          points[:,secondIndex])
+                ldmFile.write(repr(distance) + ',')
+                ldmfFile.write(repr(distance) + '\n')
                 ldmFile.write('\n')
-            ldmFile.close()
-            ldmfFile.close()
+        ldmFile.close()
+        ldmfFile.close()
             
-            # Write the label
-            labelFile.write(repr(typeIndex)+'\n')
+        # Write the label
+        labelFile.write(repr(typeIndex)+'\n')
+    labelFile.close()

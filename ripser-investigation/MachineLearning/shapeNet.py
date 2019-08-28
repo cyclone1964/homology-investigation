@@ -1,14 +1,13 @@
 # This version implements a simple neural net to do the classification
-# problem of sphere/cube based upon points randomly sampled from their
-# surfaces.
+# problem of determining which shape is represented by a set of points
+# uniformly sampled from a surface. It operates not on the points
+# directly but instead the "lower distance matrix" formed by computing
+# the pairwise differences between every point.
 
 # The first thing is to import all the things we need
-#
-# os, re, and math for file manipulation
+# os, re, sys, and math for file manipulation
 # pytorch of course
-# numpy for data input manipulations
-# matplotlib for plotting intermediates
-# shorthands for nn and model_zoo
+# shorthands for nn and numpy
 # The data set and data loader support
 import os
 import re
@@ -16,7 +15,6 @@ import sys
 import math
 import torch
 import numpy as np
-import matplotlib.pyplot as plt
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 
@@ -29,18 +27,19 @@ else:
     device = torch.device("cpu")
 
 # This defines the number of points (in 3 space) for these shapes.
-# This is hard coded into the data sets.
+# This is hard coded into the training data sets and bad errors will
+# occur if these numbers do not match the training data.
 numPoints = 64
-numClasses = 2
+numClasses = 3
 numDimensions = 3
 numDistances = 2016
 
 # Now, we write our own data set class so that we can leverage all
 # loader capabilities of pytorch. The structure here is that the
-# generated data is in two types of files, named "CubeXXX" and
-# "SphereXXX" where XXX runs from 0 to 499. We break this into two
-# sets. The first is the training set, which is 800 examples, the
-# second is the eval set, which is 200 samples.
+# points are stored in files named "ShapeX.ldmf" where ldmf means
+# lower distance matrix flattened, and it has one entry for each pair
+# of points. The class labels ... ranging from 0 to numClasses-1
+# ... is in the Labels.dat file.
 class ShapeDataset(Dataset):
 
     """ Sonar Dataset: for reading my generated Sonar data """
@@ -49,15 +48,13 @@ class ShapeDataset(Dataset):
         Args:
              root_dir (string): path to the data directory
         
-        This routine reads in the vector of IDs from the Directory
+        This routine reads in the vector of Labels from the Directory
         and sets up index lists for the various partitions
         """
         self.root_dir = root_dir
 
 
-        # The way that the files are ordered is that I created a "dictionary",
-        # which is a random permutation of all the file indices. If this file
-        # exists, we use it. If not, we create it and then use it.
+        # Load the labels file
         fileName = root_dir + '/Labels.dat'
         self.labels = np.loadtxt(fileName).astype(int)
         
@@ -98,8 +95,9 @@ class ShapeDataset(Dataset):
         y = self.labels[index]
         return X, y
 
-# A simple network for classifying points. It is currently two lienar
-# lears with a Relu between and a softmax layer
+# A simple network for classifying points. This is currently a 2
+# hidden layer network. We use a CrossEntropy loss function so there
+# is an implied Softmax layer in there.
 class ShapeNet(nn.Module):
 
     def __init__(self):
@@ -111,13 +109,12 @@ class ShapeNet(nn.Module):
             torch.nn.Linear(numDistances,
                             numDistances),
             torch.nn.ReLU(),
+            torch.nn.Dropout(),
             torch.nn.Linear(numDistances,
                             numClasses),
         )
-            
-    # Now the forward propagation. This runs the front end, then feeds
-    # the output of that to the range and frequency nets, concatenates
-    # them, and makes the output.
+
+    # A simple forward propagation
     def forward(self, x):
         
         # First, lets do the three sets of convolutions
@@ -125,13 +122,11 @@ class ShapeNet(nn.Module):
         return y
 
 
-# Set up the data set
-dataDir = '../Output/MachineLearning'
+# Now implement the actua "main" program. First, set up the data sets
+# and the data loaders
+dataDir = '../Output/MachineLearning/ThreeClass'
 trainingSet = ShapeDataset(dataDir,partition = 'train')
 validationSet = ShapeDataset(dataDir,partition = 'validate')
-
-# Now, let's try to train a network!! First, set up the data loader
-# from the training set above with a batch size of 20 for now.
 trainingLoader = DataLoader(trainingSet,batch_size = 20)
 validationLoader = DataLoader(validationSet,batch_size = 20)
 
@@ -145,7 +140,7 @@ optimizer = torch.optim.SGD(model.parameters(), lr = 1e-2)
 optimizer.zero_grad()
 
 if len(sys.argv) > 1:
-    fileName = sys.argv[1]
+    fileName = dataDir + sys.argv[1]
     print(' Load Checkpoint: ',fileName)
     if (torch.cuda.is_available()):
         checkpoint = torch.load(fileName)
@@ -170,16 +165,13 @@ else:
 
     # Create the simpleNet, insuring that it is implemented in floats not
     # doubles since it runs faster.
-    print(' Initialize New Run: ',fileName)
+    print(' Initialize New Run')
     epoch = 0
     losses = []
     valPerformance = []
     trainPerformance = []
 
-    
-# Use simple SGD to start
-
-# Now do up to 2000 epochs
+# Now do up to 100 epochs
 while (epoch < 100):
 
     # For all the batches
@@ -252,8 +244,8 @@ while (epoch < 100):
 
     # Now, every so many, we save a checkpoint so that we can
     # restart from there.
-    if (epoch % 10 == 9):
-        fileName = 'CheckPoint-' + str(epoch) +'.pth'
+    if (epoch % 10 == 0):
+        fileName = dataDir + 'CheckPoint-' + str(epoch) +'.pth'
         state = {'epoch': epoch,
                  'losses': losses,
                  'trainPerformance':trainPerformance, 
