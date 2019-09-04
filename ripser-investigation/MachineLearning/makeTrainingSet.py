@@ -184,11 +184,41 @@ class TesselatedShape:
             faceIndices[pointIndex] = faceIndex
         return [points, faceIndices]
 
+# Now, in forming shapes, it is useful to be able to do a few
+# things.  The first is to catenate two shapes into one shape. This
+# means do the bookkeeping to return a new shape with all the vertices
+# and faces correctly generated. Note that it is entirely possible
+# that some of the points will be replicated.
+def concatenateShapes(self, shape):
+    vertices = np.concatenate(self.vertices, shape.vertices, dim=1);
+    faces = np.concatenate(self.faces,
+                           shape.faces,
+                           dim=1) + vertices.shape[1];
+
+
+    # And this rotates a shape. The rotation is defined as a triplet of
+    # right handed angles around the X, Y, and Z axes, applied in reverse order.
+    def rotate(self, angles):
+        rotationMatrix = np.eye(3)
+        rotationMatrix = np.matmul(rotationMatrix,
+                                   np.ndarray([cos(angles(3)),-sin(angles(3)),0],
+                                              [sin(angles(3)),cos(angles(3)),0],
+                                              [0,0,1]))
+        rotationMatrix = np.matmul(rotationMatrix,
+                                   np.ndarray([cos(angles(2)),0,sin(angles())],
+                                              [0,1,0],
+                                              [-sin(angles(2)),0,cos(angles(2))]))
+        rotationMatrix = np.matmul(rotationMatrix,
+                                   np.ndarray([1, 0, 0], 
+                                              [0, cos(angles(1)) -sin(angles(1))
+                                               [0, sin(angles(1)),cos(angles(1))])))
+    
+        self.vertices = np.matmul(rotationMatrix, self.vertices)
+
 # It is often useful to convert a tesselation of quadrilaterals into a
 # tesselation of triangles. It is even more useful (for me) if
 # the tesselation of quadrilaterals is represented as a matrix the way
 # that MATLAB does it. This function does that
-
 def tesselateMatrix(X, Y, Z):
 
     # The number of faces is twice the number of quadrilaterals
@@ -224,7 +254,14 @@ def tesselateMatrix(X, Y, Z):
             faces[1,indices] = vertexIndices[0:-1] + X.shape[1]
             faces[2,indices] = vertexIndices[1:] + X.shape[1]    
     return [faces, vertices]
-
+                               
+# And this rotates a shape. The rotation is defined as a triplet of
+# right handed angles around the X, Y, and Z axes, applied in reverse order.
+def translateShape(shape, offset):
+    vertices = shape.vertices;
+    vertices = np.matmul(rotationMatrix, shape.vertices)
+    return(TesselatedShape(shape.faces, vertices)
+                               
 # Now this class inherits from the one above, but implements a
 # cylinder similarly to the way that MATLAB does.  It starts by
 # setting up a set of quadrilaterals then doing the triangulization
@@ -339,6 +376,55 @@ class Torus(TesselatedShape):
         [faces, vertices] = tesselateMatrix(X,Y,Z)
         TesselatedShape.__init__(self,faces, vertices)
 
+# This makes a torus with a sphere in the hole.
+class TorusSphere(TesselatedShape):
+    def __init__(self,
+                 circleRadius = 0.1,
+                 revolutionRadius=0.9,
+                 numCircleAngles =16,
+                 numRevolutionAngles = 32):
+        torus = Torus(circleRadius = circleRadius,
+                      revolutionRadius=revolutionRadius,
+                      numCircleAngles = numCircleAngles,
+                      numRevolutionAngles = numRevolutionAngles):
+        sphere = Sphere(radius=revolutionRadius-circleRadius)
+        faces = np.concatenate(torus.faces,
+                               sphere.faces + torus.faces.shape[1],
+                               dim=1)
+        vertices = np.concatenate(torus.vertices,
+                                  sphere.vertices,
+                                  dim=1)
+        TesselatedShape.__init__(self,faces, vertices)
+
+# This makes two torus such that they are interlocking, so the hole in
+# one is the tube of the other.
+class InterTorus(TesselatedShape):
+    def __init__(self,
+                 radius = 1
+                 numCircleAngles =16,
+                 numRevolutionAngles = 32):
+        torus1 = Torus(circleRadius = radius,
+                       revolutionRadius=2*radius,
+                       numCircleAngles = numCircleAngles,
+                       numRevolutionAngles = numRevolutionAngles):
+        torus2 = Torus(circleRadius = radius,
+                       revolutionRadius=2*radius,
+                       numCircleAngles = numCircleAngles,
+                       numRevolutionAngles = numRevolutionAngles):
+        torus2 = translateShape(rotateShape(torus2,[pi/2, 0, 0]),[2*radius, 0, 0]);
+        temp = catenateShapes(torus1,torus2)
+        sphere = Sphere(radius=circleRadius)
+        faces = np.concatenate(torus.faces,
+                               sphere.faces + torus.faces.shape[1],
+                               dim=1)
+        vertices = np.concatenate(torus.vertices,
+                                  sphere.vertices,
+                                  dim=1)
+        TesselatedShape.__init__(self,faces, vertices)
+
+
+                                 
+
     
         
 # This is the main 
@@ -353,8 +439,8 @@ if __name__ == "__main__":
     shapes.append(Sphere())
     shapes.append(Cube())
     shapes.append(Torus())
-
-    if (sys.argc > 1):
+           
+    if (len(sys.argv) > 1):
         numClasses = int(sys.argv[1])
         if (numClasses < 0 or numClasses > shapes.size):
             print('Unsupported number of classes: ', numClasses)
