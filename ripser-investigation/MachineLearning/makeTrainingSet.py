@@ -2,13 +2,13 @@
 # test the application of persistent homology to the classification of
 # 3-D objects.
 #
-# IT generates an ever-growing list of different 3D objects such as:
+# It generates an ever-growing list of different 3D objects such as:
 #
-# cylinder, sphere, torus, torus-with-munchin, interlocking torus, cube, 
+# cylinder, sphere, torus, torus-with-munchkin, interlocking torus, cube, etc
 #
 # I am writing this in python so that it can be run by anybody but
 # this is going to take a while since I am not familiar with
-# shape-generation functions in python. THus, I wrote my own, and it's
+# shape-generation functions in python. Thus, I wrote my own, and it's
 # implemented as a class structure. Specifically we have:
 #
 # TesselatedShape - a base class that takes lists of faces and
@@ -33,7 +33,8 @@
 #
 # Usage
 #
-# python makeTrainingSet.py OutputPathForFiles NumberOfClasses
+# python makeTrainingSet.py OutputPathForFiles \
+#       <NumberOfClasses> <NumPoints> <NumSamples>
 #
 
 # Import a few things
@@ -49,19 +50,27 @@ from mpl_toolkits.mplot3d import Axes3D
 # points in 3-space, each column a new point. The faces are, in this
 # case, 3xnumFaces array of column indices into the vertex
 # matrix. Each column here defines a triangle of those three vertices.
+#
+# It has methods for translations, rotation, centering, scaling, and
+# "exporting". Exporting means writing a matlab funciton that one can
+# invoke to render the shape in 3D since python's 3D plotting is
+# substandard.
 class TesselatedShape:
 
-    # The initializer
-    def __init__(self, faces, vertices):
+    # The initializer, which stores the faces and vertices and then
+    # sets up the bookkeping to support randomly getting points
+    # uniformly spaced along the surface.
+    def __init__(self, faces, vertices, name = "Shape"):
 
         # Do some error checking
         if (faces.shape[0] != 3 or vertices.shape[0] != 3):
             print("Bad Input Shape")
             
-        # Store the input faces and vertices.
+        # Store the input faces and vertices and name
         self.faces = faces
         self.vertices = vertices
-       
+        self.name = name
+        
         # Now, let's compute the area of every face. We need to do
         # this so that we can randomly select faces weighted according
         # to their area later. We compute the area using the cross
@@ -69,10 +78,11 @@ class TesselatedShape:
         areas = np.zeros(faces.shape[1])
         for faceIndex in range(faces.shape[1]):
             triangle = vertices[:,faces[:,faceIndex].astype(int)]
-            areas[faceIndex] = 0.5 * \
+            area = 0.5 * \
                 np.linalg.norm(np.cross(triangle[:,1] - triangle[:,0],
                                         triangle[:,2] - triangle[:,0]))
-        
+            areas[faceIndex] = area
+
         # Let's remove those that have no area: this might happen for
         # some shape generating functions. I am very frustrated that
         # numpy does not have a simple analog to matlabs find function
@@ -103,7 +113,7 @@ class TesselatedShape:
     # axes in the plane of the triangle. These axes consist of the
     # longest side of the triangle and an orthognalized and scaled
     # copy of the second longest side. These two axes form two sides
-    # of the rectangle that holds the triangle. we can then randomly
+    # of the rectangle that holds the triangle. We can then randomly
     # select points along each of those two axes and check if they are
     # in the triangle by computing the barycentric coordinates.
     def getPoints(self,count):
@@ -213,17 +223,58 @@ class TesselatedShape:
         return [points, faceIndices]
 
     # Now, in forming shapes, it is useful to be able to do a few
-    # things.  The first is to catenate two shapes into one shape. This
+    # things.  The first is to catenate one shape into another. This
     # means do the bookkeeping to return a new shape with all the vertices
     # and faces correctly generated. Note that it is entirely possible
     # that some of the points will be replicated.
     #
-    # IMPORTANT SAFETY TIP: this function breaks the selector, so I would only call it
-    # in the constructor for a super-class. 
-    def concatenate(self, shape):
+    # This function can just concatenate them, in which case it is the
+    # user's responsiblity to deal with intersections etc. However, if
+    # invoked with a "Position" operation, this function will
+    # concatenate the input onto the current object such that the x,
+    # y, or z coordinates are distinct. For example, if called with
+    # position=1, it will add the input to the self so that the
+    # minimum X of the input is the maximum X of self. Similarly with
+    # Y, and Z, using 2 and 3. Conversely, it will put it on the other
+    # side using -1, -2, or -3.
+    #
+    # IMPORTANT SAFETY TIP: this function breaks the selector, so I
+    # would only call it in the constructor for a super-class.
+    def concatenate(self, shape, position = 0):
         temp = self.vertices.shape[1]
-        self.vertices = np.concatenate((self.vertices, shape.vertices), axis=1)
+        if (position > 0):
+            offset = self.vertices.max(axis=1) - shape.vertices.min(axis=1)
+        elif (position < 0):
+            offset = self.vertices.min(axis=1) - shape.vertices.max(axis=1)
+        else:
+            offset = np.zeros((3,1))
+
+        if (abs(position) is 1):
+            offset[1] = 0
+            offset[2] = 0
+        elif (abs(position) is 2):
+            offset[0] = 0
+            offset[2] = 0
+        elif(abs(position) is 3):
+            offset[0] = 0
+            offset[1] = 0
+
+        offset.shape = (3,1)
+        self.vertices = np.concatenate((self.vertices,
+                                        shape.vertices+offset),axis=1)
         self.faces = np.concatenate((self.faces,shape.faces+temp),axis=1)
+
+    # And this centers the object on the origin, that is to say, it
+    # puts the origin exactly 1/2 way between the X, Y, and Z limits.
+    def center(self):
+        offset = (self.vertices.min(axis=1) + self.vertices.max(axis=1))/2
+        offset.shape = (3,1)
+        self.vertices = self.vertices - offset
+
+    # And this scales it. WARNING: THIS IS UNTESTED
+    def scale(self,scale):
+        self.vertices = self.vertices * scale
+        
 
     # And this rotates a shape. The rotation is defined as a triplet of
     # right handed angles around the X, Y, and Z axes, applied in reverse order.
@@ -248,14 +299,35 @@ class TesselatedShape:
     
         self.vertices = np.matmul(rotationMatrix, self.vertices)
 
-    # And this rotates a shape. The rotation is defined as a
-    # triplet of right handed angles around the X, Y, and Z axes,
-    # applied in reverse order.
-    # 
-    # This function does not break the selector
+    # And this translates the shape
     def translate(self, offset):
         for index in range(len(offset)):
             self.vertices[index,:] = self.vertices[index,:] + offset[index]
+
+    # This function exports the shape to a MATLAB .m file so that it
+    # can be fed to MATLABS surf function for display. THis is because
+    # python does not render 3D very well.
+    def export(self,fileName):
+        fileId = open(fileName,'w')
+        fileId.write('Shape.vertices = [...\n')
+        for index in range(self.vertices.shape[1]):
+            fileId.write(repr(self.vertices[0,index]) + ' ' +
+                         repr(self.vertices[1,index]) + ' ' +
+                         repr(self.vertices[2,index]) + '\n')
+        fileId.write("]';\n")
+        fileId.write('Shape.faces = [...\n')
+        for index in range(self.faces.shape[1]):
+            fileId.write(repr(self.faces[0,index]+1) + ' ' +
+                         repr(self.faces[1,index]+1) + ' ' +
+                         repr(self.faces[2,index]+1) + '\n')
+        fileId.write("]';\n")
+        fileId.write("figure();\n")
+        fileId.write("patch('Vertices',Shape.vertices','Faces',Shape.faces');\n")
+        fileId.write("xlabel('X'); ylabel('Y'); zlabel('Z'); title('")
+        fileId.write(self.name);
+        fileId.write("'); axis equal;\n")
+                     
+        fileId.close()
 
 # It is often useful to convert a tesselation of quadrilaterals into a
 # tesselation of triangles. It is even more useful (for me) if
@@ -286,7 +358,8 @@ def tesselateMatrix(X, Y, Z):
         # ... and now set up the triangulation. This can actually be
         # done in one of two ways, depending upon which way we choose
         # to triangulate the squares that the matrix representation
-        # implies. We randomly choose one of them as it doesnt' really matter.
+        # implies. We randomly choose one of them as it doesnt' really
+        # matter.
         if (index < X.shape[0]-1):
 
             # These are the upper triangles ...
@@ -306,53 +379,126 @@ def tesselateMatrix(X, Y, Z):
                                
 # Now this class inherits from the one above, but implements a
 # cylinder similarly to the way that MATLAB does.  It starts by
-# setting up a set of quadrilaterals then doing the triangulization
+# setting up a set of quadrilaterals then doing the triangularization.
+#
+# The cylinder is aligned with the Z axis and has a radius as defined
+# by the intputs at each height along the cylinder.
+#
+# Inputs: radii - vector of radii at each of the z positions
+# zpositions - the locations of the radii
 class Cylinder(TesselatedShape):
-    def __init__(self, radius = np.ones((20,1)),xpositions = [],numAngles=20):
+    def __init__(self,
+                 radii = 0.5 * np.ones((2,1)),
+                 zpositions = np.array([-0.5, 0.5]),
+                 numAngles=20,
+                 name="Cylinder"):
+
+        # The number of radii must match the number of z positions
+        if (len(zpositions) != len(radii)):
+            print("Bad Input Vectors")
 
         # Now, these are matrices of facets just like MATLAB's
         # cylinder returns. So we need the number of points along the
         # cylinder and a vector of the angles
-        numRadii = radius.shape[0]
+        numRadii = radii.shape[0]
         angles = np.linspace(0,2*np.pi,numAngles)
-
-        # Now, if no positions were supplied, lay them equally along
-        # the X axis, centered on the origin
-        if (len(xpositions) == 0):
-            xpositions = np.linspace(-1,1,len(radius))
-
+        
         X = np.zeros((numRadii,numAngles))
         Y = np.zeros((numRadii,numAngles))
         Z = np.zeros((numRadii,numAngles))
-        for index in range(numRadii):
 
-            X[index,:] = radius[index] * np.cos(angles)
-            Y[index,:] = radius[index] * np.sin(angles)
-            Z[index,:] = index/(numRadii-1) - 0.5
+        for index in range(numRadii):
+            X[index,:] = radii[index] * np.cos(angles) 
+            Y[index,:] = radii[index] * np.sin(angles) 
+            Z[index,:] = zpositions[index]
         
         [faces, vertices] = tesselateMatrix(X,Y,Z)
         
         # Invoke the initializer for the super class (I think)
-        TesselatedShape.__init__(self,faces,vertices)
+        TesselatedShape.__init__(self,faces,vertices,name)
+        self.center()
 
-# This uses the Cylinder function with a radius that follows a cosine shape
-# to generate a sphere. 
+# This uses the Cylinder function with a radius that is chosen to
+# generate a sphere.
 class Sphere(Cylinder):
 
-    def __init__(self,radius=1,numPoints=20):
+    def __init__(self,radius=1,numPoints = 20, name="Sphere"):
 
         # For a sphere, the radius of the cylinder varies as the length
         # along it. So we set the radius as if we are drawing a circle
-        # centered on a point 1/2 way along the
-        xpositions = np.linspace(-1,1,numPoints)
-        radius = np.sqrt(1 - xpositions * xpositions)
-        
-        Cylinder.__init__(self,radius,xpositions)
+        # centered on a point 1/2 way along the line
+        zpositions = radius * np.linspace(-1,1,numPoints)
+        radii = np.sqrt(radius*radius - zpositions * zpositions)
+        Cylinder.__init__(self,radii, zpositions, name = name)
 
+# This creates a line of spheres all touching of the given count. The
+# spheres form a line along the X axis.
+class StringOfSpheres(TesselatedShape):
+
+    def __init__(self,
+                 count=1,
+                 numPoints=20,
+                 name = "StringOfSpheres"):
+
+        # For this we simply make a sphere, and catenate it to itself
+        # multiple times, then center it
+        stringOfSpheres = Sphere()
+        sphere = Sphere()
+        for index in range(count-1):
+            stringOfSpheres.concatenate(sphere,position = 1)
+
+        TesselatedShape.__init__(self,
+                                 stringOfSpheres.faces,
+                                 stringOfSpheres.vertices,
+                                 name)
+        self.center()
+
+# This makes a triangular layer of spheres, similar to a rack of pool balls
+class RackOfSpheres(TesselatedShape):
+    def __init__(self,
+                 numRows = 2,
+                 name="RackOfSpheres"):
+
+        # Start with a single sphere ...
+        rack = Sphere()
+
+        # .. and for every row we need to ...
+        for rowIndex in range(1,numRows):
+            # ... translate the current row along the Y axis and add another row
+            rack.translate([0, np.sqrt(3), 0])
+            rack.concatenate(StringOfSpheres(count = rowIndex+1))
+
+        # Now initialize ourselves and center
+        TesselatedShape.__init__(self,rack.faces, rack.vertices,name)
+        self.center()
+
+# This makes a tower of spheres with 1, then 3, then 6, then 10 etc
+class Sphyrimid(TesselatedShape):
+    def __init__(self,
+                 numLayers = 2,
+                 name="Sphyrimid"):
+
+
+        # Start with one sphere ... 
+        sphyrimid = Sphere()
+
+        # ... and for every layer below that one ...
+        for layerIndex in range(1,numLayers):
+            # ... move the sphyrimid up ...
+            sphyrimid.translate([0,0,2*np.sqrt(2/3)])
+
+            # .. and add a rack below it 
+            rack = RackOfSpheres(numRows = layerIndex+1)
+            sphyrimid.concatenate(rack)
+
+        # Initialize and then center
+        TesselatedShape.__init__(self, sphyrimid.faces, sphyrimid.vertices,name)
+        self.center()
+        
 # And this makes a cube using brute force
 class Cube(TesselatedShape):
 
-    def __init__(self,sideLengths=[2.,2.,2.]):
+    def __init__(self,sideLengths=[0.5,0.5,0.5],name="Cube"):
 
         # The vertices are simply the 8 points of the box
         x = sideLengths[0]/2
@@ -361,6 +507,8 @@ class Cube(TesselatedShape):
         vertices = np.array([[-x, x, -x, x, -x, x, -x, x],
                              [-y, -y, y, y, -y, -y, y, y],
                              [-z, -z, -z, -z, z, z, z, z]])
+
+        # The faces I typed in myself
         faces = np.array([[0,1,2],
                           [1,2,3],
                           [4,5,6],
@@ -373,13 +521,14 @@ class Cube(TesselatedShape):
                           [1,4,5],
                           [2,3,6],
                           [3,6,7]]).astype(int)
-        TesselatedShape.__init__(self,np.transpose(faces),vertices)
+        TesselatedShape.__init__(self,np.transpose(faces),vertices,name)
+        self.center()
 
-# This makes two nested spheres
+# This makes nested spheres of specific radii
 class NestedSpheres(TesselatedShape):
 
     # Default is two nested spheres
-    def __init__(self, radii=[1., 2.]):
+    def __init__(self, radii=[1., 2.],name="NestedSpheres"):
 
         for index in range(radii.size):
             sphere = Sphere(radii[index])
@@ -390,93 +539,182 @@ class NestedSpheres(TesselatedShape):
                 faces = numpy.concatenate((faces, sphere.faces))
                 vertices = numpy.concatenate((vertices,
                                               sphere.vertices+vertices.shape[1]))
-        TesselatedShape.__init__(self,faces, vertices)
+        TesselatedShape.__init__(self,faces, vertices,name)
 
 # This makes a torus. This is done by generating points around a line
-# that forms a circle and then tesselating those points. 
+# that forms a circle and then tesselating those points.
+#
+# Inputs:
+# innerRadius - the inner radius of the torus (radius of the donut hole)
+# outerRadius - the outer radius of the torus (raius of the donut)
 class Torus(TesselatedShape):
 
     def __init__(self,
-                 tubeRadius = 0.5,
-                 wheelRadius=1,
-                 numCircleAngles =16,
-                 numRevolutionAngles = 32):
+                 name = "Torus", 
+                 innerRadius = 0.25,
+                 outerRadius = 0.5,
+                 numTubeAngles =16,
+                 numWheelAngles = 32):
 
-        X = np.zeros((numCircleAngles, numRevolutionAngles))
-        Y = np.zeros((numCircleAngles, numRevolutionAngles))
-        Z = np.zeros((numCircleAngles, numRevolutionAngles))
+        X = np.zeros((numTubeAngles, numWheelAngles))
+        Y = np.zeros((numTubeAngles, numWheelAngles))
+        Z = np.zeros((numTubeAngles, numWheelAngles))
 
-        circleAngles = np.linspace(0,2*np.pi,num=numCircleAngles)
-        revolutionAngles = np.linspace(0,2*np.pi,num=numRevolutionAngles)
-        revolutionRadii = wheelRadius + tubeRadius * np.cos(circleAngles)
+        # This is better done in terms of the radius of the center of the
+        # tube and the radius of the tube itself
+        wheelRadius = 0.5 * (innerRadius + outerRadius)
+        tubeRadius = 0.5 * (outerRadius - innerRadius)
+        tubeAngles = np.linspace(0,2*np.pi,num=numTubeAngles)
+        wheelAngles = np.linspace(0,2*np.pi,num=numWheelAngles)
+        wheelRadii = wheelRadius + tubeRadius * np.cos(tubeAngles)
 
-        for index1 in range(numCircleAngles):
-            for index2 in range(numRevolutionAngles):
-                X[index1,index2] = revolutionRadii[index1]*np.cos(revolutionAngles[index2])
-                Y[index1,index2] = revolutionRadii[index1]*np.sin(revolutionAngles[index2])
-                Z[index1,index2] = tubeRadius * np.sin(circleAngles[index1])
+        for index1 in range(numTubeAngles):
+            for index2 in range(numWheelAngles):
+                X[index1,index2] = wheelRadii[index1]*np.cos(wheelAngles[index2])
+                Y[index1,index2] = wheelRadii[index1]*np.sin(wheelAngles[index2])
+                Z[index1,index2] = tubeRadius * np.sin(tubeAngles[index1])
 
         [faces, vertices] = tesselateMatrix(X,Y,Z)
-        TesselatedShape.__init__(self,faces, vertices)
+        TesselatedShape.__init__(self,faces, vertices,name)
+        self.center();
+        
+# This creates a line of tori, stacked along the Z axis, all touching
+# of the given count.
+class StringOfTori(TesselatedShape):
 
+    def __init__(self,
+                 count = 2,
+                 innerRadius = 0.25,
+                 outerRadius = 0.5,
+                 name="StringOfTori"):
+
+        # For this we simply make a sphere, and catenate it to itself
+        # multiple times with a specific offset
+        torus = Torus(innerRadius = innerRadius,
+                      outerRadius = outerRadius)
+        stringOfTori = Torus(innerRadius = innerRadius,
+                             outerRadius = outerRadius)
+        for index in range(count-1):
+            stringOfTori.concatenate(torus,position = 3)
+        stringOfTori.center()
+        TesselatedShape.__init__(self,
+                                 stringOfTori.faces,
+                                 stringOfTori.vertices,
+                                 name)
+    
 # This makes a torus with a sphere in the hole by using the
 # sub-functions and proper rotations and translations.
 class TorusSphere(TesselatedShape):
     def __init__(self,
-                 tubeRadius = 0.5,
-                 wheelRadius=1,
-                 numCircleAngles =16,
-                 numRevolutionAngles = 32):
-        torus = Torus(tubeRadius = tubeRadius,
-                      wheelRadius=wheelRadius,
-                      numCircleAngles = numCircleAngles,
-                      numRevolutionAngles = numRevolutionAngles)
-        torus.concatenate(Sphere(radius=wheelRadius-tubeRadius))
-        TesselatedShape.__init__(self,torus.faces, torus.vertices)
+                 innerRadius = 0.25,
+                 outerRadius = 0.5,
+                 name = "TorusSphere"):
+        torus = Torus(innerRadius = innerRadius,
+                      outerRadius = outerRadius)
+        torus.concatenate(Sphere(radius=innerRadius))
+        TesselatedShape.__init__(self,torus.faces, torus.vertices,name)
 
 # This makes two torii such that they are interlocking, so the hole in
 # one is the tube of the other.
 class InterTorus(TesselatedShape):
     def __init__(self,
-                 radius = 1,
-                 numCircleAngles =16,
-                 numRevolutionAngles = 32):
-        torus1 = Torus(tubeRadius = radius,
-                       wheelRadius=2*radius,
-                       numCircleAngles = numCircleAngles,
-                       numRevolutionAngles = numRevolutionAngles)
-        torus2 = Torus(tubeRadius = radius,
-                       wheelRadius=2*radius,
-                       numCircleAngles = numCircleAngles,
-                       numRevolutionAngles = numRevolutionAngles)
+                 radius = 0.25,
+                 name="InterTorus"):
+        torus1 = Torus(innerRadius = radius,
+                       outerRadius = 3*radius);
+        torus2 = Torus(innerRadius = radius,
+                       outerRadius = 3*radius)
         torus2.rotate([np.pi/2, 0, 0])
         torus2.translate([2*radius, 0, 0])
         torus2.concatenate(torus1)
-        TesselatedShape.__init__(self,torus2.faces, torus2.vertices)
+        TesselatedShape.__init__(self,torus2.faces, torus2.vertices,name)
 
-# This is the main funciton, with usage as described in the header
+# This makes a cylinder with torusSpheres on either end.
+class CylinderWithTorusSphereEnds(TesselatedShape):
+    def __init__(self,
+                 radius=0.5,
+                 length=1,
+                 name="CylinderWithTorusSphereEnds"):
+        thisShape = Cylinder(radii=np.array([radius, radius]), 
+                             zpositions = 0.5*np.array([-length, length]))
+        torusSphere = TorusSphere(outerRadius = radius,
+                                  innerRadius = radius/2);
+        torusSphere.translate([0,0,length/2])
+        thisShape.concatenate(torusSphere)
+        torusSphere.translate([0,0,-length])
+        thisShape.concatenate(torusSphere)
+        TesselatedShape.__init__(self,thisShape.faces, thisShape.vertices,name)
+    
+
+# This is the main function, with usage as described in the header
 if __name__ == "__main__":
 
-    # We make 1000 totoal shapes, each and 64 points on each
-    # shape. WE choose 64 so that ripser can run well.
-    numPoints = 256
-    numShapes = 5000
-
-    # The default list of shapes we will make
+    
+    # The default list of shapes we will make: we do this first so we
+    # know how many shapes we have available when parsing the command
+    # line arguments below
+    print('Building Shape Catalog ....');
     shapes = []
+    shapes.append(Cylinder())
     shapes.append(Sphere())
     shapes.append(Cube())
     shapes.append(Torus())
-    shapes.append(Cylinder())
     shapes.append(TorusSphere())
     shapes.append(InterTorus())
+    shapes.append(StringOfSpheres(count = 2))
+    shapes.append(StringOfSpheres(count = 3))
+    shapes.append(StringOfSpheres(count = 4))
+    shapes.append(StringOfTori(count = 2))
+    shapes.append(StringOfTori(count = 3))
+    shapes.append(StringOfTori(count = 4))
+    shapes.append(RackOfSpheres(numRows = 2))
+    shapes.append(RackOfSpheres(numRows = 3))
+    shapes.append(RackOfSpheres(numRows = 4))
+    shapes.append(Sphyrimid(numLayers = 2))
+    shapes.append(Sphyrimid(numLayers = 3))
+    shapes.append(Sphyrimid(numLayers = 4))
+    shapes.append(CylinderWithTorusSphereEnds())
 
     # Parse the command line arguments
-    if (len(sys.argv) != 3):
+    print('Parse Arguments ...')
+    if (len(sys.argv) < 2):
         print('Usage: ', sys.argv[0],' PathToOutput NumberOfClasses')
         sys.exit()
+
+    # Set the output path and number of classes: number of classes
+    # limited to the number above
     outputPath = sys.argv[1]
-    numClasses = int(sys.argv[2])
+    if (len(sys.argv) > 2):
+        numClasses = int(sys.argv[2])
+    else:
+        numClasses = len(shapes)
+    if (numClasses > len(shapes)):
+        print('Warning; Number of classes limited to ',repr(len(shapes)))
+        numClasses = len(shapes)
+
+    # Set the number of points to sample them by
+    if (len(sys.argv) > 3):
+        numPoints = int(sys.argv[3])
+    else:
+        numPoints = 128
+
+    # Set the number of samples to generate
+    if (len(sys.argv) > 4):
+        numSamples = int(sys.argv[4])
+    else:
+        numSamples = 5000
+
+    # Now go through and center and scale them all and then also export them so
+    # I can look at them in matlab.
+    for index in range(len(shapes)):
+        shapes[index].center()
+        extents = (np.amax(shapes[index].vertices,1) -
+                   np.amin(shapes[index].vertices,1))
+        scale = 1/np.amax(extents)
+        shapes[index].scale(scale)
+        #fileName = shapes[index].name + repr(index) + '.m'
+        #shapes[index].export(fileName)
+
     if (numClasses < 0 or numClasses > len(shapes)):
         print('Unsupported number of classes: ', numClasses)
         sys.exit()
@@ -487,7 +725,7 @@ if __name__ == "__main__":
     labelFile = open(outputPath + '/Labels.dat','w') 
     
     # For each shape type ...
-    for count in range(numShapes):
+    for count in range(numSamples):
         typeIndex = np.random.randint(len(shapes))
         shape = shapes[typeIndex]
         print('Shape: ',count,' Type ',typeIndex)
