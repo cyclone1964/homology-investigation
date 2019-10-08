@@ -678,7 +678,8 @@ if __name__ == "__main__":
     # Parse the command line arguments
     print('Parse Arguments ...')
     if (len(sys.argv) < 2):
-        print('Usage: ', sys.argv[0],' PathToOutput NumberOfClasses')
+        print('Usage: ', sys.argv[0],' PathToOutput <NumberOfClasses> ')
+        print('          <NumPoints> <NumSamples>')
         sys.exit()
 
     # Set the output path and number of classes: number of classes
@@ -696,7 +697,7 @@ if __name__ == "__main__":
     if (len(sys.argv) > 3):
         numPoints = int(sys.argv[3])
     else:
-        numPoints = 128
+        numPoints = 64
 
     # Set the number of samples to generate
     if (len(sys.argv) > 4):
