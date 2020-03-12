@@ -34,7 +34,7 @@
 # Usage
 #
 # python makeTrainingSet.py OutputPathForFiles \
-#       <NumberOfClasses> <NumPoints> <NumSamples>
+#       dataPath <NumberOfClasses> <NumPoints> <NumSamples>
 #
 
 # Import a few things

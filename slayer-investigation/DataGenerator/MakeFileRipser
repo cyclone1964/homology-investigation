@@ -1,0 +1,13 @@
+RIPSER_PATH = ../ripser
+DIM = 4
+OUTPUT_DIR = ../Output/MachineLearning
+INPUT_FILES := $(wildcard $(OUTPUT_DIR)/*.ldm)
+OUTPUT_FILES = $(INPUT_FILES:ldm=ripser)
+
+%.ripser:  %.ldm
+	   rm -f $@; \
+	   $(RIPSER_PATH)/ripser --dim $(DIM) $< | awk -f parseRipserFile.awk > $@
+
+all:	$(OUTPUT_FILES)
+
+
