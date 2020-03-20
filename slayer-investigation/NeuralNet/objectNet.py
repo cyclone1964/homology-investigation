@@ -69,7 +69,7 @@ class ObjectNet(nn.Module):
         x = self.fc(x)
         return(x)
 
-dataDir = '../Data/ExampleData'
+dataDir = '../Data/TwoClass64'
 model = ObjectNet().float()
 
 trainingSet = SlayerDataset(dataDir,partition = 'train')
@@ -78,20 +78,56 @@ validationSet = SlayerDataset(dataDir,partition = 'validate')
 trainingLoader = DataLoader(trainingSet,batch_size = 20)
 validationLoader = DataLoader(validationSet,batch_size = 20)
 
-optimizer = torch.optim.Adam(model.parameters())
-numEpochs = 50;
-for epoch in range(numEpochs):
+optimizer = torch.optim.SGD(model.parameters(),
+                                lr = 0.1,
+                                momenteum=0.7)
+# Now, we do some training. First, we have the option of loading from
+# a checkpoint if we find one: start from the highest numbered one
+lastCheckpoint = 0
+for r,d,f in os.walk('.'):
+    for file in f:
+        if 'CheckPoint' in file:
+            parts = re.split("[-\.]",file)
+            lastCheckpoint = max(lastCheckpoint,int(parts[1]))
+            print("Found Checkpoint",lastCheckpoint)
+# If we found a checkpoint, load it, otherwise, start from scratch
+if (lastCheckpoint > 0):
+    fileName = "CheckPoint-" + str(lastCheckpoint) + ".pth"
+    print("Loading Checkpoint: ",fileName)
+    if (torch.cuda.is_available()):
+        checkpoint = torch.load(fileName)
+    else:
+        checkpoint = torch.load(fileName,map_location = "cpu")
+
+    # Now extract the things from the dicionary
+    epoch = checkpoint['epoch']
+    model.load_state_dict(checkpoint['state_dict'])
+    optim.load_state_dict(checkpoint['optimizer'])
+    losses = checkpoint['losses']
+    if ('valPerformance' in checkpoint):
+        valPerformance = checkpoint['valPerformance']
+    else:
+        valPerformance = []
+
+else:
+    print("Checkpoint Not Found");
+    epoch = 0
+    losses = []
+    valPerformance = []
+
+
+while (epoch < 5000):
     for X_batch, y_batch in trainingLoader:
         X_batch = X_batch.to(device)
         y_batch = y_batch.to(device)
 
         y_pred = model.forward(X_batch)
         loss = torch.nn.functional.cross_entropy(y_pred,y_batch)
+        losses.append(loss.item())
 
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-
 
     numTotal = 0
     numCorrect = 0
@@ -107,3 +143,22 @@ for epoch in range(numEpochs):
         numTotal += states.shape[0]
 
     print('Loss in Epoch ',epoch,' was ', numCorrect/numTotal)
+    # Add this to the performance numbers
+    valPerformance.append(float(numCorrect)/float(numTotal))
+
+    # Now, every 1000 or so, we save a checkpoint so that we can
+    # restart from there.
+    fileName = 'CheckPoint-' + str(epoch) +'.pth'
+    state = {'epoch': epoch,
+             'losses': losses,
+             'valPerformance':valPerformance, 
+             'state_dict' : model.state_dict(),
+             'optimizer': optim.state_dict()}
+    torch.save(state,fileName)
+    print('Saved Checkpoint ',fileName,
+          ' train: ',trainPerformance[-1],
+          ' val:',valPerformance[-1])
+
+    # Next epoch please
+    epoch = epoch + 1
+    
