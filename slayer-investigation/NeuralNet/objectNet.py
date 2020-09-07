@@ -80,7 +80,7 @@ validationLoader = DataLoader(validationSet,batch_size = 20)
 
 optimizer = torch.optim.SGD(model.parameters(),
                                 lr = 0.1,
-                                momenteum=0.7)
+                                momentum=0.7)
 # Now, we do some training. First, we have the option of loading from
 # a checkpoint if we find one: start from the highest numbered one
 lastCheckpoint = 0
@@ -102,7 +102,7 @@ if (lastCheckpoint > 0):
     # Now extract the things from the dicionary
     epoch = checkpoint['epoch']
     model.load_state_dict(checkpoint['state_dict'])
-    optim.load_state_dict(checkpoint['optimizer'])
+    optimizer.load_state_dict(checkpoint['optimizer'])
     losses = checkpoint['losses']
     if ('valPerformance' in checkpoint):
         valPerformance = checkpoint['valPerformance']
@@ -153,10 +153,9 @@ while (epoch < 5000):
              'losses': losses,
              'valPerformance':valPerformance, 
              'state_dict' : model.state_dict(),
-             'optimizer': optim.state_dict()}
+             'optimizer': optimizer.state_dict()}
     torch.save(state,fileName)
     print('Saved Checkpoint ',fileName,
-          ' train: ',trainPerformance[-1],
           ' val:',valPerformance[-1])
 
     # Next epoch please
