@@ -42,6 +42,7 @@ import sys
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+
 # To support future expansion, I design a few classes. The base class
 # is termed a tesselated shape, specifically tesselated with
 # triangles. The structure is taken from MATLAB's patch structure
@@ -51,7 +52,7 @@ from mpl_toolkits.mplot3d import Axes3D
 # matrix. Each column here defines a triangle of those three vertices.
 #
 # It has methods for translations, rotation, centering, scaling, and
-# "exporting". Exporting means writing a matlab funciton that one can
+# "exporting". Exporting means writing a matlab function that one can
 # invoke to render the shape in 3D since python's 3D plotting is
 # substandard.
 class TesselatedShape:
@@ -102,7 +103,7 @@ class TesselatedShape:
         selector = np.concatenate(([0], selector))
         self.selector = selector/selector[-1]
 
-    # This method returns points randomly sampled points along the
+    # This method returns points randomly sampled along the
     # tesslated shape.  For each point, it randomly selects one of the
     # faces, and then it picks a point uniformly on that face. Because
     # these are triangles, the generation of a uniformly sampled point
@@ -175,7 +176,7 @@ class TesselatedShape:
                     axis0 = sides[:,2]
                     axis1 = -sides[:,1]
             
-            # Now do a graham schmidt orthoganlization of the
+            # Now do a graham schmidt orthoganilization of the
             # second onto the first
             baseAxis = axis0
             normalAxis = axis1 - axis0 * np.dot(axis1,axis0)/np.dot(axis0,axis0)
@@ -202,7 +203,7 @@ class TesselatedShape:
                 point = origin + np.random.rand(1) * baseAxis
                 point = point + np.random.rand(1) * normalAxis
 
-                # Thesea are the barycentric coordinates
+                # These are the barycentric coordinates
                 u = np.dot(np.cross(sides[:,1],
                                     point-trianglePoints[:,1]),
                            normal)/area
@@ -273,7 +274,6 @@ class TesselatedShape:
     # And this scales it. WARNING: THIS IS UNTESTED
     def scale(self,scale):
         self.vertices = self.vertices * scale
-        
 
     # And this rotates a shape. The rotation is defined as a triplet of
     # right handed angles around the X, Y, and Z axes, applied in reverse order.
@@ -381,7 +381,7 @@ def tesselateMatrix(X, Y, Z):
 # setting up a set of quadrilaterals then doing the triangularization.
 #
 # The cylinder is aligned with the Z axis and has a radius as defined
-# by the intputs at each height along the cylinder.
+# by the inputs at each height along the cylinder.
 #
 # Inputs: radii - vector of radii at each of the z positions
 # zpositions - the locations of the radii
