@@ -648,7 +648,6 @@ class CylinderWithTorusSphereEnds(TesselatedShape):
 # This is the main function, with usage as described in the header
 if __name__ == "__main__":
 
-    
     # The default list of shapes we will make: we do this first so we
     # know how many shapes we have available when parsing the command
     # line arguments below
