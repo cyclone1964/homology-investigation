@@ -8,6 +8,11 @@ ripserPath = "../../ripser-investigation/ripser"
 while(1):
     inputFileName = dataDir + "/Shape{}.ldm".format(index)
     outputFileName = dataDir + "/Shape{}.bc".format(index)
+    if (os.path.isfile(outputFileName)):
+	print(outputFileName,": Exists")
+	index = index + 1
+    	continue;
+
     if (os.path.isfile(inputFileName)):
         command = "rm -f outputFileName;" + ripserPath + "/ripser --dim 4 " + inputFileName
         command = command + " | /usr/bin/awk -f parseRipserFile.awk > " + outputFileName
