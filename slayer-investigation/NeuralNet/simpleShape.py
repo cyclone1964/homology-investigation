@@ -25,7 +25,7 @@ from sklearn.model_selection import StratifiedShuffleSplit
 #
 # The collator thus returns a list of these tuples, again one for each dimension in the set
 
-torch.cuda.current_device()
+#torch.cuda.current_device()
 import random
 random.seed(123)
 
@@ -37,12 +37,14 @@ from torchph.nn.slayer import \
      SLayerExponential, SLayerRational, \
      LinearRationalStretchedBirthLifeTimeCoordinateTransform, \
      SLayerRationalHat
-     
+
+from torch.nn.parameter import Parameter
 from torch.utils.data import DataLoader, SubsetRandomSampler, Dataset
 from torch.autograd import Variable
 
 # This is the training parameters, classed up for us
 class train_env:
+    cuda = False
     nu = 0.01
     n_epochs = 200
     lr_initial = 0.01
@@ -140,7 +142,7 @@ class SimpleShapeDataset(Dataset):
 # modules directly (as it were) To do this, it needs to know the
 # number of elements in each list that is consistent with the dataset.
 class SimpleCollate:
-    def __init__(self,num_elements, cuda=True):
+    def __init__(self,num_elements, cuda=False):
         self.cuda = cuda
         self.num_elements = num_elements
 
@@ -176,9 +178,9 @@ class SimpleCollate:
                 validity[d] = np.append(validity[d], np.reshape(v, (1,)+v.shape), axis=0)
 
         # Now convert into torch tensors, pushing to the cuda if that's enabled
-        barcodes = [torch.tensor(barcodes[d],dtype=torch.float32).cuda() for d in range(len(barcodes))]
-        validity = [torch.tensor(validity[d], dtype=torch.float32).cuda() for d in range(len(barcodes))]
-        y = torch.tensor(np.array(labels), dtype = torch.long).cuda()
+        barcodes = [torch.tensor(barcodes[d],dtype=torch.float32) for d in range(len(barcodes))]
+        validity = [torch.tensor(validity[d], dtype=torch.float32) for d in range(len(barcodes))]
+        y = torch.tensor(np.array(labels), dtype = torch.long)
 
         # And then into tuples
         if (self.cuda):
@@ -273,7 +275,7 @@ class SimpleModel(nn.Module):
         for dim in range(len(allPoints)):
             kmeans = sklearn.cluster.KMeans(n_clusters = self.num_elements[dim],
                                             random_state=0).fit(allPoints[dim])
-            self.slayers[dim].centers = kmeans.cluster_centers_
+            self.slayers[dim].centers = Parameter(torch.tensor(kmeans.cluster_centers_))
 
 def experiment(train_slayer):    
 
@@ -293,7 +295,9 @@ def experiment(train_slayer):
         model = SimpleModel(num_elements,dataset.num_classes)
         model.center_init([dataset[i] for i in train_i])
 
-        # model.cuda()
+        if (train_env.cuda):
+            model.cuda()
+        collate_fn = SimpleCollate(num_elements, cuda = train_env.cuda)
 
         stats = defaultdict(list)
         stats_of_runs.append(stats)
@@ -308,15 +312,15 @@ def experiment(train_slayer):
             
             dl_train = DataLoader(dataset,
                                   batch_size=train_env.batch_size,
-                                  collate_fn = SimpleCollate(num_elements),
+                                  collate_fn = collate_fn,
                                   sampler=SubsetRandomSampler(train_i))
 
             dl_test = DataLoader(dataset,
                                  batch_size=train_env.batch_size, 
-                                 collate_fn = SimpleCollate(num_elements),
+                                 collate_fn = collate_fn,
                                  sampler=SubsetRandomSampler(test_i))
 
-            epoch_loss = 0    
+            epoch_loss = 0
 
             # Every once in a while we update the learning rate
             if i_epoch % train_env.lr_epoch_step == 0:
