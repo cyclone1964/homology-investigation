@@ -297,6 +297,9 @@ def experiment(train_slayer):
 
         if (train_env.cuda):
             model.cuda()
+            for d in range(len(model.slayers)):
+                model.slayers[d].centers.cuda()
+                model.slayers[d].sharpness.cuda()
             
         for d in range(len(model.slayers)):
             if (model.slayers[d].centers.is_cuda):
