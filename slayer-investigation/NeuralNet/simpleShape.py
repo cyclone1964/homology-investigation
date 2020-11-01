@@ -275,7 +275,11 @@ class SimpleModel(nn.Module):
         for dim in range(len(allPoints)):
             kmeans = sklearn.cluster.KMeans(n_clusters = self.num_elements[dim],
                                             random_state=0).fit(allPoints[dim])
-            self.slayers[dim].centers = Parameter(torch.tensor(kmeans.cluster_centers_))
+            self.slayers[dim].centers = torch.tensor(kmeans.cluster_centers_)
+
+        if (train_env.cuda):
+            for d in range(len(self.slayers)):
+                self.slayers[d].centers.cuda()
 
 def experiment(train_slayer):    
 
