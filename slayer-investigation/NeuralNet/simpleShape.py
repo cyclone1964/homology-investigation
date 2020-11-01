@@ -277,10 +277,6 @@ class SimpleModel(nn.Module):
                                             random_state=0).fit(allPoints[dim])
             self.slayers[dim].centers = torch.tensor(kmeans.cluster_centers_)
 
-        if (train_env.cuda):
-            for d in range(len(self.slayers)):
-                self.slayers[d].centers.cuda()
-
 def experiment(train_slayer):    
 
     stats_of_runs = []
@@ -301,6 +297,13 @@ def experiment(train_slayer):
 
         if (train_env.cuda):
             model.cuda()
+            
+        for d in range(len(model.slayers)):
+            if (model.slayers[d].centers.is_cuda):
+                print("Centers cuda")
+            else:
+                print("Centers NOT cuda")
+
         collate_fn = SimpleCollate(num_elements, cuda = train_env.cuda)
 
         stats = defaultdict(list)
@@ -313,6 +316,8 @@ def experiment(train_slayer):
         for i_epoch in range(1, train_env.n_epochs+1):      
 
             model.train()
+
+            
             
             dl_train = DataLoader(dataset,
                                   batch_size=train_env.batch_size,
