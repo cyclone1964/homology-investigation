@@ -187,7 +187,7 @@ class SimpleCollate:
                   self.num_elements[d],
                   len(batch))
                 for d in range(len(self.num_elements))]
-                y.cuda()
+            y.cuda()
         else:
             X = [(barcodes[d],
                   validity[d],
