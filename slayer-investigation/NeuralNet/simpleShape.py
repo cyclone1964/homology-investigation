@@ -25,7 +25,7 @@ from sklearn.model_selection import StratifiedShuffleSplit
 #
 # The collator thus returns a list of these tuples, again one for each dimension in the set
 
-# torch.cuda.current_device()
+torch.cuda.current_device()
 import random
 random.seed(123)
 
@@ -86,7 +86,8 @@ class SimpleShapeDataset(Dataset):
         
         # This loads the labels, which is a list of all viable IDs
         self.labels = np.loadtxt(root_dir + '/Labels.dat').astype(float)
-
+        self.labels = self.labels[:100]
+        
         # Set the number of classes from the number of unique labels
         self.num_classes = len(np.unique(self.labels))
 
@@ -139,7 +140,7 @@ class SimpleShapeDataset(Dataset):
 # modules directly (as it were) To do this, it needs to know the
 # number of elements in each list that is consistent with the dataset.
 class SimpleCollate:
-    def __init__(self,num_elements, cuda=False):
+    def __init__(self,num_elements, cuda=True):
         self.cuda = cuda
         self.num_elements = num_elements
 
@@ -175,19 +176,24 @@ class SimpleCollate:
                 validity[d] = np.append(validity[d], np.reshape(v, (1,)+v.shape), axis=0)
 
         # Now convert into torch tensors, pushing to the cuda if that's enabled
-        if (self.cuda):
-            barcodes = [torch.tensor(barcodes[d],dtype=torch.float32).cuda() for d in range(len(barcodes))]
-            validity = [torch.tensor(validity[d], dtype=torch.float32).cuda() for d in range(len(barcodes))]
-            y = torch.tensor(np.array(labels), dtype = torch.long).cuda()
-        else:
-            barcodes = [torch.tensor(barcodes[d],dtype=torch.float32) for d in range(len(barcodes))]
-            validity = [torch.tensor(validity[d], dtype=torch.float32) for d in range(len(barcodes))]
-            y = torch.tensor(np.array(labels), dtype = torch.long)
-
+        barcodes = [torch.tensor(barcodes[d],dtype=torch.float32).cuda() for d in range(len(barcodes))]
+        validity = [torch.tensor(validity[d], dtype=torch.float32).cuda() for d in range(len(barcodes))]
+        y = torch.tensor(np.array(labels), dtype = torch.long).cuda()
 
         # And then into tuples
-        X = [(barcodes[d], validity[d], self.num_elements[d], len(batch))
-                 for d in range(len(self.num_elements))]
+        if (self.cuda):
+            X = [(barcodes[d].cuda(),
+                  validity[d].cuda(),
+                  self.num_elements[d],
+                  len(batch))
+                for d in range(len(self.num_elements))]
+                y.cuda()
+        else:
+            X = [(barcodes[d],
+                  validity[d],
+                  self.num_elements[d],
+                  len(batch))
+                for d in range(len(self.num_elements))]
 
         return X, y
 
