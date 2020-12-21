@@ -38,6 +38,7 @@
 #
 
 # Import a few things
+import os
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
@@ -249,13 +250,13 @@ class TesselatedShape:
         else:
             offset = np.zeros((3,1))
 
-        if (abs(position) is 1):
+        if (abs(position) == 1):
             offset[1] = 0
             offset[2] = 0
-        elif (abs(position) is 2):
+        elif (abs(position) == 2):
             offset[0] = 0
             offset[2] = 0
-        elif(abs(position) is 3):
+        elif(abs(position) == 3):
             offset[0] = 0
             offset[1] = 0
 
@@ -648,6 +649,9 @@ class CylinderWithTorusSphereEnds(TesselatedShape):
 # This is the main function, with usage as described in the header
 if __name__ == "__main__":
 
+    # The path to the ripser excecutable
+    ripserPath = "../../ripser-investigation/ripser"
+    
     # The default list of shapes we will make: we do this first so we
     # know how many shapes we have available when parsing the command
     # line arguments below
@@ -725,7 +729,7 @@ if __name__ == "__main__":
     for count in range(numSamples):
         typeIndex = np.random.randint(len(shapes))
         shape = shapes[typeIndex]
-        print('Shape: ',count,' Type ',typeIndex)
+        print('Shape {}: Type {}'.format(count,typeIndex))
         sys.stdout.flush()
 
         # .. by getting the points and writing them to the .dat file ...
@@ -750,7 +754,34 @@ if __name__ == "__main__":
             ldmFile.write('\n')
         ldmFile.close()
         ldmfFile.close()
-            
+
         # Write the label
         labelFile.write(repr(typeIndex)+'\n')
+
+        # Now run ripser on them
+        inputFile = outputPath + "/Shape{}.ldm".format(count)
+        outputFile = outputPath + "/Shape{}.bc".format(count)
+        print(" ... run ripser {} -> {}".format(inputFile,outputFile))
+        command = "rm -f " + outputFile
+        command = command + "; " + ripserPath + "/ripser --dim 2 " + inputFile + "| /usr/bin/awk -f parseRipserFile.awk > " + outputFile
+
+        os.system(command)
+
+        # Now load the output of ripser and make the sli files
+        print(" ... make slayer files")
+        inputFile = outputPath + "/Shape{}.bc".format(count)
+        bc = np.loadtxt(inputFile).astype(float)
+    
+        persistence = bc[:,1] - bc[:,0]
+        dims = bc[:,2].astype(int)
+    
+        for dim in np.unique(dims):
+            indices = np.nonzero(dims == dim)
+            indices = indices[0]
+            print("    ... D {}: {}".format(dim,len(indices)))
+
+            i = np.argsort(persistence[indices])
+            indices = indices[i]
+            np.savetxt("{}/Shape{}_dim_{}.sli".format(outputPath,count,dim),
+                       bc[indices,0:2])
     labelFile.close()

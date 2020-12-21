@@ -1,98 +1,85 @@
-# This file contains my implementation of a slayer ML set for the
-# "SimpleShape" data set. It is loosely based upon the animal.py
-# implementatino with a greatly simplified DataSet and provider and a
-# much simpler collater.
 import os
-import math
+import sys
 import torch
-import numpy as np
+import torch.nn as nn
 import sklearn.cluster
-from collections import defaultdict
+import numpy as np
+
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import StratifiedShuffleSplit
 
-# Data flow and it's architeture
-#
-# Our dataset returns a list of num_elements x 2 numpy arrays, with one entry for each
-# dimension in the list. 
-# [(num_elements x 2) (num_elements x 2) ....] for each dimension
-#
-# The batching breturns a list of lists from the dataset
-#
-# 
-# Inside of the forward function, each slayer layer needs to be fed with a tuple
-# ([batchsize x num_elements x 2], dummy_points[batchsize x num_elements], 2, batch size)
-#
-# The collator thus returns a list of these tuples, again one for each dimension in the set
+import itertools
+import matplotlib.pyplot as plt
 
-#torch.cuda.current_device()
-import random
-random.seed(123)
+from torchph.nn.slayer import SLayerExponential, \
+    SLayerRational, \
+    LinearRationalStretchedBirthLifeTimeCoordinateTransform, \
+    prepare_batch, \
+    SLayerRationalHat
 
-import torch.nn as nn
+from sklearn.model_selection import ShuffleSplit
+from collections import Counter, defaultdict
+from torch.utils.data import DataLoader, SubsetRandomSampler
 
-# These are the slayer support functions, which need to be installed
-# into our python libraries.
-from torchph.nn.slayer import \
-     SLayerExponential, SLayerRational, \
-     LinearRationalStretchedBirthLifeTimeCoordinateTransform, \
-     SLayerRationalHat
+from collections import OrderedDict
 
-from torch.nn.parameter import Parameter
-from torch.utils.data import DataLoader, SubsetRandomSampler, Dataset
 from torch.autograd import Variable
 
-# This is the training parameters, classed up for us
+from sklearn.model_selection import StratifiedShuffleSplit
+
+# These are the parameters used for training, including the maximum
+# number of elements of each of the dimensions we use.
+dims_to_use = ["dim_{}".format(k) for k in range(3)]
 class train_env:
-    cuda = False
+    plot_enable = False
+    n_splits = 8
+    num_elements = 64
     nu = 0.01
-    n_epochs = 200
+    n_epochs = 30
     lr_initial = 0.01
     momentum = 0.9
     lr_epoch_step = 40
-    batch_size = 20
+    batch_size = 100
     train_size = 0.9
+    
 
-# This vector determins the number of dimensions we will be using to
-# train as well as the number of slayer elements for each
-# dimension. This is set up to be variable as, for Vietoris-Rips
-# complexes, the number of simplices in each dimension reduces
-# substantially as the dimension increases
-num_elements = [64, 12, 4]
+coordinate_transform = \
+    LinearRationalStretchedBirthLifeTimeCoordinateTransform(nu=train_env.nu)
 
-# Now, we write our own data set class so that we can leverage all
-# loader capabilities of pytorch. The structure here is that the
-# generated data is stored in a directory in a series of files with a
-# specific naming convention.
+# This is the data set used to provide access to the output of ripser
+# as we haev them maintained. Specifically, in the data directory, we
+# find files of the following name structures
 #
 # Labels.dat - list of all the labels (0-N)
-# Shape-<ID>.#.bc - file containing the barcode for the shape ID in dimension #
+# Shape#.bc - file containing the barcode for the shape ID in dimension 
+# Shape#.dat - file containint the locations of all the points on the shape
+# Shape#.ldm - the lower diagonal matrix
+# Shape#.ldmf - a flattened version thereof
+# Shape#_dim_#.sli - the barcode broken out by dimension
 #
 # Thus the number of classes can be retrieved from the number of unique labels. 
-class SimpleShapeDataset(Dataset):
+class SimpleDataset(Dataset):
 
     """ SlayerDataset: for reading my generated Object data """
     def __init__(self,
                  root_dir,
-                 num_elements = [64]):
+                 dims_to_use):
         """
         Args:
              root_dir (string): path to the data directory
-             num_elements: a list of element counts for each of the supported dimension
+             max_elements: a list of element counts for each of the supported dimension
         
         This routine reads in the vector of IDs from the Directory
         and sets up index lists for the various partitions
         """
         self.root_dir = root_dir
-        self.num_elements = num_elements
+        self.dims_to_use = dims_to_use
         
         # This loads the labels, which is a list of all viable IDs
-        self.labels = np.loadtxt(root_dir + '/Labels.dat').astype(float)
-        self.labels = self.labels[:100]
+        self.labels = np.loadtxt(root_dir + '/Labels.dat').astype(int)
         
         # Set the number of classes from the number of unique labels
         self.num_classes = len(np.unique(self.labels))
-
         
     """
     Return the length of the data set
@@ -108,111 +95,62 @@ class SimpleShapeDataset(Dataset):
     """
     def __getitem__(self,index):
 
-        # The item is returned as a list of num_elements[dim]x2 arrays and the label
-        X = []
+        # The item is returned as a list of max_elements[dim]x2 arrays
+        # and the label
+        
 
         # For each dimension ....
-        for dim in range(len(self.num_elements)):
+        X = {}
+        for dim in self.dims_to_use:
 
             filename = \
-              self.root_dir+ '/Shape' + str(index) + '_' + str(dim) + '.sli'
+              self.root_dir+ '/Shape' + str(index) + '_' + dim + '.sli'
+
             # ... if it exists, read in the file as float type,
             # limited to the number of elements for this dimension ...
             if (os.path.isfile(filename)):                      
                 points = np.loadtxt(filename,
-                                    max_rows = self.num_elements[dim],
-                                    ndmin = 2).astype(float)
-                # ... and add zeros at the end to fill it out if the read was short ...
-                if (points.shape[0] < self.num_elements[dim]):
-                    points = np.append(points,
-                                          -1*np.ones((self.num_elements[dim] - points.shape[0],
-                                                    points.shape[1])).astype(float),
-                                           axis=0)
-            # ... but if the file doesn't exist, just laod zeros ...
-            else:
-                points = -1 * np.ones((self.num_elements[dim],2)).astype(float)
+                                    max_rows = train_env.num_elements,
+                                    ndmin = 2).astype(np.float32)
             # .. and append to the list
-            X.append(points)
+            X[dim] = torch.from_numpy(points)
 
         y = self.labels[index]
-        
+
         return X, y
 
-# This function collates a batch so that we can feed the slayer
-# modules directly (as it were) To do this, it needs to know the
-# number of elements in each list that is consistent with the dataset.
-class SimpleCollate:
-    def __init__(self,num_elements, cuda=False):
+
+
+class PHTCollate:   
+    def __init__(self, nu, cuda=True):
         self.cuda = cuda
-        self.num_elements = num_elements
+        
+    def __call__(self, sample_target_iter):
+        
+        augmented_samples = []
+        x, y = dict_sample_target_iter_concat(sample_target_iter)
+                                              
+        for k in x.keys():
+            batch_view = x[k]
+            x[k] = prepare_batch(batch_view, 2)                  
 
-    # Now, this takes a batch as returned by the DataLoader and turns
-    # it into data usable directly by the algorithm. The Batch is a
-    # list, with one entry per sample in the batck, where each entry
-    # is itself a list of the data from the
-    def __call__(self, batch):
+        y = torch.LongTensor(y)    
 
-        # Let's initialize the bar codes and the flags that indicate
-        # their validity to have the correct number of rows for each of the dimensions.`q
-        barcodes = [np.zeros((0, s ,2)) for s in self.num_elements]
-        validity = [np.zeros((0, s)) for s in self.num_elements]
-        labels = [];
+        if self.cuda:
+            # Shifting the necessary parts of the prepared batch to the cuda
+            x = {k: collection_cascade(v,
+                                       lambda x: isinstance(x, tuple),
+                                       lambda x: (x[0].cuda(), x[1].cuda(), x[2], x[3]))
+                 for k, v in x.items()}
 
-        # Now for every entry in the batch ... 
-        for entry in batch:
-            # ... extract the data and the labels and append the labes ...
-            X, y = entry
-            labels.append(y)
-            
-            # ... and now, for every dimension, append the input data
-            # to the barcodes and use the presence of zeros to indiate
-            # which ones are valid.
-            for d in range(len(self.num_elements)):
-                # Note the pre-pending of a singleton dimension to the
-                # shape of the input data to make it appendable to the
-                # batched barcode data
-                barcodes[d] = np.append(barcodes[d],np.reshape(X[d],(1,)+X[d].shape), axis = 0)
+            y = y.cuda()
 
-                # Now set the validity flags from the existence of zeros in the array
-                v = np.where(X[d][:,0] >= 0, 1, 0)
-                validity[d] = np.append(validity[d], np.reshape(v, (1,)+v.shape), axis=0)
+        return x, y                       
+    
+collate_fn = PHTCollate(train_env.nu, cuda=True)
 
-        # Now convert into torch tensors, pushing to the cuda if that's enabled
-        barcodes = [torch.tensor(barcodes[d],dtype=torch.float32) for d in range(len(barcodes))]
-        validity = [torch.tensor(validity[d], dtype=torch.float32) for d in range(len(barcodes))]
-        y = torch.tensor(np.array(labels), dtype = torch.long)
-
-        # And then into tuples
-        if (self.cuda):
-            X = [(barcodes[d].cuda(),
-                  validity[d].cuda(),
-                  self.num_elements[d],
-                  len(batch))
-                for d in range(len(self.num_elements))]
-            y.cuda()
-        else:
-            X = [(barcodes[d],
-                  validity[d],
-                  self.num_elements[d],
-                  len(batch))
-                for d in range(len(self.num_elements))]
-
-        return X, y
-
-dataset = SimpleShapeDataset(root_dir='../Data/TwoClass64',
-                                 num_elements = num_elements)
-
-# The transforms on the input data:
-#
-# the first selects only the dimensions we want to use (from all the
-# ones in the file)
-#
-# The second acts to convert the dictionary into a flattened set of parameters
-# 
-# The third applies the selected coordinate transform. Note that the
-# predicate here is already satisfied by the second list.
-def Slayer(num_elements):
-    return SLayerRationalHat(num_elements, radius_init=0.25, exponent=1)
+def Slayer(n_elements):
+    return SLayerRationalHat(n_elements, radius_init=0.25, exponent=1)
 
 def LinearCell(n_in, n_out):
     m = nn.Sequential(nn.Linear(n_in, n_out), 
@@ -222,92 +160,152 @@ def LinearCell(n_in, n_out):
     m.out_features = m[0].out_features
     return m
 
-
-# This is a model for simple shapes wherein the slayer layers are
-# allowed to be of different sizes before they are catenated
-# together. The number of elements per layer (in this case per barcode
-# dimension) is held in a list, and the dimensions run from 0 to
-# length(num_elements)-1
 class SimpleModel(nn.Module):
-
-    def __init__(self, num_elements, num_classes):
-
+    def __init__(self):
         super().__init__()   
-        self.num_elements = num_elements
-
-        self.slayers = []
-        cls_in_dim = 0
-        for dim in range(len(num_elements)):
-            s = Slayer(num_elements[dim])
-            self.slayers.append(nn.Sequential(s))
-            cls_in_dim += num_elements[dim]
-
-        self.cls = nn.Sequential(nn.Dropout(0.3),
-                                 LinearCell(cls_in_dim, 16),    
-                                 nn.Dropout(0.2),
-                                 LinearCell(16, num_classes))
+        
+        self.slayers = ModuleDict()
+        for k in dims_to_use:
+            s = Slayer(train_env.num_elements)
+            self.slayers[k] = nn.Sequential(s)
+        cls_in_dim = len(dims_to_use)*train_env.num_elements
+            
+        self.cls = nn.Sequential(
+                                nn.Dropout(0.3),
+                                LinearCell(cls_in_dim, int(cls_in_dim/4)),    
+                                nn.Dropout(0.2),
+                                LinearCell(int(cls_in_dim/4), int(cls_in_dim/16)),  
+                                nn.Dropout(0.1),
+                                nn.Linear(int(cls_in_dim/16), 20))
         
     def forward(self, input):
-
         x = []
-        for dim in range(len(self.slayers)):
-            t = self.slayers[dim](input[dim])
-            x.append(t)
-        x = torch.cat(x, dim=1)
-        x = self.cls(x)       
+        for k in dims_to_use:
+            xx = self.slayers[k](input[k])
+            x.append(xx)
 
+        x = torch.cat(x, dim=1)          
+        x = self.cls(x)       
+                                              
         return x
     
-    def center_init(self, dataset):
+    def center_init(self, sample_target_iter):
+        centers = k_means_center_init(sample_target_iter, train_env.num_elements)
+        
+        for k, v in centers.items():
+            self.slayers._modules[k][0].centers.data = v
+            
+class ModuleDict(nn.Module):
+    def __init__(self):
+        super().__init__()
+        
+    def __setitem__(self, key, item):
+        setattr(self, key, item)
+        
+    def __getitem__(self, key):
+        return getattr(self, key)
 
-        allPoints = []
-        for index in range(len(dataset)):
-            X,_ = dataset[index]
-            for dim in range(len(X)):
-                points = X[dim]
-                indices = np.nonzero(points[:,1])
-                points = points[indices[0],:]
-                if (index == 0):
-                    allPoints.append(points)
-                else:
-                    allPoints[dim] = np.append(allPoints[dim], points,axis=0)
+def k_means_center_init(sample_target_iter: dict, n_centers: int):
+    samples_by_view, _ = dict_sample_target_iter_concat(sample_target_iter)
+    
+    points_by_view = {}
+    for k, v in samples_by_view.items():
+        points_by_view[k] = torch.cat(v, dim=0).numpy()
+    
+    k_means = {k: sklearn.cluster.KMeans(n_clusters=n_centers, init='k-means++', n_init=10, random_state=123)
+               for k in points_by_view.keys()}
+    
+    center_inits_by_view = {}
+    for k in points_by_view.keys():
+        centers = k_means[k].fit(points_by_view[k]).cluster_centers_
+        centers = torch.from_numpy(centers)
+        center_inits_by_view[k] = centers
+        
+    return center_inits_by_view  
 
-        for dim in range(len(allPoints)):
-            kmeans = sklearn.cluster.KMeans(n_clusters = self.num_elements[dim],
-                                            random_state=0).fit(allPoints[dim])
-            self.slayers[dim].centers = torch.tensor(kmeans.cluster_centers_)
+def dict_sample_target_iter_concat(sample_target_iter: iter):
+    """
+    Gets an sample target iterator of dict samples. Returns
+    a concatenation of the samples based on each key and the
+    target list.
 
-def experiment(train_slayer):    
+    Example:
+    ```
+    sample_target_iter = [({'a': 'a1', 'b': 'b1'}, 0), ({'a': 'a2', 'b': 'b2'}, 1)]
+    x = dict_sample_iter_concat([({'a': 'a1', 'b': 'b1'}, 0), ({'a': 'a2', 'b': 'b2'}, 1)])
+    print(x)
+    ({'a': ['a1', 'a2'], 'b': ['b1', 'b2']}, [0, 1])
+    ```
 
+    :param sample_target_iter:
+    :return:
+    """
+
+    samples = defaultdict(list)
+    targets = []
+
+    for sample_dict, y in sample_target_iter:
+        for k, v in sample_dict.items():
+            samples[k].append(v)
+
+        targets.append(y)
+
+    samples = dict(samples)
+
+    length = len(samples[next(iter(samples))])
+    assert all(len(samples[k]) == length for k in samples)
+
+    return samples, targets
+
+def numpy_to_torch_cascade(input):
+    def numpy_to_torch(array):
+        return_value = None
+        try:
+            return_value = torch.from_numpy(array)
+        except Exception as ex:
+            if len(array) == 0:
+                return_value = torch.Tensor()
+            else:
+                raise ex
+
+        return return_value.float()
+
+    return collection_cascade(input,
+                              stop_predicate=lambda x: isinstance(x, numpy.ndarray),
+                              function_to_apply=numpy_to_torch)
+
+def collection_cascade(input, stop_predicate: callable, function_to_apply: callable):
+    if stop_predicate(input):
+        return function_to_apply(input)
+    elif isinstance(input, list or tuple):
+        return [collection_cascade(x,
+                                   stop_predicate=stop_predicate,
+                                   function_to_apply=function_to_apply) for x in input]
+    elif isinstance(input, dict):
+        return {k: collection_cascade(v,
+                                      stop_predicate=stop_predicate,
+                                      function_to_apply=function_to_apply) for k, v in input.items()}
+    else:
+        raise ValueError('Unknown type collection type. Expected list, tuple, dict but got {}'
+                         .format(type(input)))
+
+def experiment(train_slayer,dataset):
+    
     stats_of_runs = []
-
-    splitter = StratifiedShuffleSplit(n_splits=10, 
+    
+    splitter = StratifiedShuffleSplit(n_splits=train_env.n_splits, 
                                       train_size=train_env.train_size, 
                                       test_size=1-train_env.train_size, 
                                       random_state=123)
-
     train_test_splits = list(splitter.split(X=dataset.labels, y=dataset.labels))
     train_test_splits = [(train_i.tolist(), test_i.tolist()) for train_i, test_i in train_test_splits]
-
-    # This thing gives run numbers and indices for the two sets
+    
     for run_i, (train_i, test_i) in enumerate(train_test_splits):
+        print('Run {}: '.format(run_i),end='',flush=True)
 
-        model = SimpleModel(num_elements,dataset.num_classes)
+        model = SimpleModel()
         model.center_init([dataset[i] for i in train_i])
-
-        if (train_env.cuda):
-            model.cuda()
-            for d in range(len(model.slayers)):
-                model.slayers[d].centers.cuda()
-                model.slayers[d].sharpness.cuda()
-            
-        for d in range(len(model.slayers)):
-            if (model.slayers[d].centers.is_cuda):
-                print("Centers cuda")
-            else:
-                print("Centers NOT cuda")
-
-        collate_fn = SimpleCollate(num_elements, cuda = train_env.cuda)
+        model.cuda()
 
         stats = defaultdict(list)
         stats_of_runs.append(stats)
@@ -316,37 +314,33 @@ def experiment(train_slayer):
                               lr=train_env.lr_initial, 
                               momentum=train_env.momentum)
 
-        for i_epoch in range(1, train_env.n_epochs+1):      
-
+        for i_epoch in range(1, train_env.n_epochs+1):
+            if ((i_epoch-1)%10 == 0):
+                print('{:02d} '.format(i_epoch-1),end='',flush=True)
             model.train()
-
-            
             
             dl_train = DataLoader(dataset,
-                                  batch_size=train_env.batch_size,
-                                  collate_fn = collate_fn,
+                                  batch_size=train_env.batch_size, 
+                                  collate_fn=collate_fn,
                                   sampler=SubsetRandomSampler(train_i))
 
             dl_test = DataLoader(dataset,
                                  batch_size=train_env.batch_size, 
-                                 collate_fn = collate_fn,
+                                 collate_fn=collate_fn, 
                                  sampler=SubsetRandomSampler(test_i))
 
-            epoch_loss = 0
+            epoch_loss = 0    
 
-            # Every once in a while we update the learning rate
             if i_epoch % train_env.lr_epoch_step == 0:
-                for para_group in opt.param_groups:
-                    para_group['lr'] = para_group['lr'] * 0.5
+                adapt_lr(opt, lambda lr: lr*0.5)
 
-            # This is where the actual training happens using the given optimizer.
-            for i_batch, (x, y) in enumerate(dl_train, 1):
+            for i_batch, (x, y) in enumerate(dl_train, 1):              
 
                 y = torch.autograd.Variable(y)
 
                 def closure():
                     opt.zero_grad()
-                    y_hat = model(x)
+                    y_hat = model(x)            
                     loss = nn.functional.cross_entropy(y_hat, y)   
                     loss.backward()
                     return loss
@@ -355,9 +349,10 @@ def experiment(train_slayer):
 
                 epoch_loss += float(loss)
                 stats['loss_by_batch'].append(float(loss))
-                stats['centers'].append(model.slayers[1][0].centers.data.cpu().numpy())
-                
-                print("Epoch {}/{}, Batch {}/{}".format(i_epoch, train_env.n_epochs, i_batch, len(dl_train)), end="       \r")
+                for dim in dims_to_use:
+                    stats['centers'].append(model.slayers[dim][0].centers.data.cpu().numpy())
+
+#                print("Epoch {}/{}, Batch {}/{}".format(i_epoch, train_env.n_epochs, i_batch, len(dl_train)), end="       \r")
 
             stats['train_loss_by_epoch'].append(epoch_loss/len(dl_train))            
                      
@@ -369,7 +364,7 @@ def experiment(train_slayer):
             for i_batch, (x, y) in enumerate(dl_test):
 
                 y_hat = model(x)
-                epoch_test_loss += float(nn.functional.cross_entropy(y_hat, torch.autograd.Variable(y)).data)
+                epoch_test_loss += float(nn.functional.cross_entropy(y_hat, torch.autograd.Variable(y.cuda())).data)
 
                 y_hat = y_hat.max(dim=1)[1].data.long()
 
@@ -379,21 +374,57 @@ def experiment(train_slayer):
             test_acc = true_samples.item()/seen_samples
             stats['test_accuracy'].append(test_acc)
             stats['test_loss_by_epoch'].append(epoch_test_loss/len(dl_test))
-            
-        print('')
-        print('acc.', np.mean(stats['test_accuracy'][-10:]))
+        print(' Mean acc: ', np.mean(stats['test_accuracy'][-train_env.n_splits:]))
         
     return stats_of_runs
-    
-res_learned_slayer = experiment(True)
+
+
+# Run the experienent with slayer doing the learning, which is to say
+# the elements actually adapt
+train_env.root_dir = sys.argv[1]
+dataset = SimpleDataset(train_env.root_dir, dims_to_use)
+dataset.data_transforms = [
+                           lambda x: {k: x[k] for k in dims_to_use}, 
+                           numpy_to_torch_cascade,
+                           lambda x: collection_cascade(x, 
+                                                        lambda x: isinstance(x, torch.Tensor), 
+                                                        lambda x: coordinate_transform(x))
+                           ]
+res_learned_slayer = experiment(True,dataset)
 accs = [np.mean(s['test_accuracy'][-10:]) for s in res_learned_slayer]
-print(accs)
-print(np.mean(accs))
-print(np.std(accs))
+print("Learned Performance ({}): Mean {} Var {}".format(train_env.root_dir,
+                                                     np.mean(accs),
+                                                     np.std(accs)))
+if (False):
+    # Now run it with the centers unlearned to see the different
+    res_rigid_slayer = experiment(False)
+    accs = [np.mean(s['test_accuracy'][-10:]) for s in res_rigid_slayer]
+    print("Rigid Performance ({}): Mean {} Var {}".format(train_env.root_dir,
+                                                          np.mean(accs),
+                                                          np.std(accs)))
 
-res_rigid_slayer = experiment(False)
-accs = [np.mean(s['test_accuracy'][-10:]) for s in res_rigid_slayer]
-print(accs)
-print(np.mean(accs))
-print(np.std(accs))
+if (train_env.plot_enable):
+    stats = res_learned_slayer[-1]
+    plt.figure()
+    if 'centers' in stats:
+        c_start = stats['centers'][0]
+        c_end = stats['centers'][-1]
 
+        plt.plot(c_start[:,0], c_start[:, 1], 'bo', label='center initialization')
+        plt.plot(c_end[:,0], c_end[:, 1], 'ro', label='center learned')
+
+        all_centers = numpy.stack(stats['centers'], axis=0)
+        for i in range(all_centers.shape[1]):
+            points = all_centers[:,i, :]
+            plt.plot(points[:, 0], points[:, 1], '-k', alpha=0.25)
+        
+
+        plt.legend()
+    
+        plt.figure()
+        plt.plot(stats['train_loss_by_epoch'], label='train_loss')
+        plt.plot(stats['test_loss_by_epoch'], label='test_loss')
+        plt.plot(stats['test_accuracy'], label='test_accuracy')
+
+        plt.legend()
+        plt.show()
