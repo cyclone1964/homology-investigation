@@ -645,8 +645,101 @@ class CylinderWithTorusSphereEnds(TesselatedShape):
         thisShape.concatenate(torusSphere)
         TesselatedShape.__init__(self,thisShape.faces, thisShape.vertices,name)
     
+# This generates the "figure 8" immersion of a Klien bottle in three
+# dimensions. This math taken from wikipedia but augmented for
+# different scalings.
+#
+# This embedding basically renders a torus except that the
+# cross-section of the torus is a "figure 8", hence the name. It is
+# parameterized by two angles: The angle around the Z axis, which runs
+# through the hole in the torus, and the angle around the center of
+# the tube. 
+#
+# The properties are:
+# holeRadius = radius of the center hole of the torus
+# tubeRadius = the radius of the tube of the torus
+# 
+class Figure8KleinBottle(TesselatedShape):
+    def __init__(self,
+                 name = "Figure8KleinBottle", 
+                 holeRadius: float = 1.0,
+                 tubeRadius: float = 1.0,
+                 numTubeAngles: int = 32,
+                 numWheelAngles: int = 32):
 
-# This is the main function, with usage as described in the header
+        X = np.zeros((numTubeAngles,numWheelAngles))
+        Y = np.zeros((numTubeAngles,numWheelAngles))
+        Z = np.zeros((numTubeAngles,numWheelAngles))
+
+        u = 2 * np.pi * np.arange(0,1,1.0/numWheelAngles)
+        v = 2 * np.pi * np.arange(0,1,1.0/numTubeAngles)
+
+        # The input is in terms of hole and tube width. We need the
+        # radius of the center of the tube
+        centerRadius = holeRadius + tubeRadius
+        for uIndex in range(len(u)):
+            cu = np.cos(u[uIndex])
+            su = np.sin(u[uIndex])
+            cuo2 = np.cos(u[uIndex]/2)
+            suo2 = np.sin(u[uIndex]/2)
+            for vIndex in range(len(v)):
+                sv = np.sin(v[vIndex])
+                s2v = np.sin(2 * v[vIndex])
+                
+                X[uIndex,vIndex] = cu * (centerRadius +
+                                         tubeRadius * (cuo2 * sv -
+                                                        suo2 * s2v))
+                
+                Y[uIndex,vIndex] = su * (centerRadius +
+                                         tubeRadius * (cuo2 * sv -
+                                                        suo2 * s2v))
+                Z[uIndex,vIndex] = tubeRadius * (suo2 * sv + cuo2*s2v)
+        [faces, vertices] = tesselateMatrix(X,Y,Z);
+        TesselatedShape.__init__(self,faces,vertices,name)
+        self.center()
+
+class StandardKleinBottle(TesselatedShape):
+    def __init__(self,
+                 name = "StandardKleinBottle", 
+                 radius: float = 5.0,
+                 num_points: int = 128):
+
+        X = np.zeros((num_points,num_points))
+        Y = np.zeros((num_points,num_points))
+        Z = np.zeros((num_points,num_points))
+
+        u =    np.pi * np.arange(0,1,1.0/num_points)
+        v = 2* np.pi * np.arange(0,1,1.0/num_points)
+
+
+        for uIndex in range(num_points):
+            su = np.sin(u[uIndex])
+            cu = np.cos(u[uIndex])
+            for vIndex in range(num_points):
+                sv = np.sin(v[vIndex])
+                cv = np.cos(v[vIndex])
+                X[uIndex,vIndex] = ((0 - 2 / 15) * cu *
+                                    (3 * cv -
+                                     30 * su +
+                                     90 * (cu ** 4) * su - 
+                                     60 * (cu ** 6) * su +
+                                     5 * cu * cv * su))
+                Y[uIndex,vIndex] = ((0 - 1 / 15) * su *
+                                    (3 * cu -
+                                     3 * (cu ** 2) * cv -
+                                     48 * (cu ** 4) * cv +
+                                     48 * (cu ** 6) * cv -
+                                     60 * su +
+                                     5 * cu * cv * su -
+                                     5 * (cu ** 3) * cv * su - 
+                                     80 * (cu ** 5) * cv * su +
+                                    80 * (cu ** 7) * cv * su))
+                Z[uIndex,vIndex] = ((2 / 15) * (3 + 5 * cu * su) * sv)
+        X, Y, Z = radius * X, radius * Y, radius*Z
+        [faces, vertices] = tesselateMatrix(X,Y,Z);
+        TesselatedShape.__init__(self,faces,vertices,name)
+        self.center()
+
 if __name__ == "__main__":
 
     # The path to the ripser excecutable
@@ -657,6 +750,8 @@ if __name__ == "__main__":
     # line arguments below
     print('Building Shape Catalog ....');
     shapes = []
+    shapes.append(Figure8KleinBottle())
+    shapes.append(StandardKleinBottle())
     shapes.append(Sphere())
     shapes.append(Torus())
     shapes.append(TorusSphere())
