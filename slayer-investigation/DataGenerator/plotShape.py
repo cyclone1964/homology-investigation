@@ -12,4 +12,7 @@ X = np.loadtxt(fileName,delimiter=',')
 fig = plt.figure()
 ax = fig.add_subplot(111,projection = '3d')
 ax.scatter(X[:,0],X[:,1],X[:,2],'b');
+ax.set_xlabel('X')
+ax.set_ylabel('Y')
+ax.set_zlabel('Z')
 plt.show()

@@ -1,3 +1,16 @@
+# This is my implementation of the slayer stack to support using it
+# for object recognition. In our application, the objects are points
+# sampled randomly from the surface of some object.
+#
+# I provide the following map of how the data flows through this
+# admittedly obfuscating interface (designed NOT by me)
+#
+# SimpleDataset - the interface to the underlying representation. It
+# returns a single item from the data set. This item is represented as
+# an X, y tuple, where:
+#
+#     X - a dictionary of dimensions and 2xN barcodes
+#     y - an integer label
 import os
 import sys
 import torch
@@ -257,6 +270,7 @@ def dict_sample_target_iter_concat(sample_target_iter: iter):
 
     return samples, targets
 
+# This function takes in an iterator, in this case a dictionary of something
 def numpy_to_torch_cascade(input):
     def numpy_to_torch(array):
         return_value = None
@@ -271,10 +285,15 @@ def numpy_to_torch_cascade(input):
         return return_value.float()
 
     return collection_cascade(input,
-                              stop_predicate=lambda x: isinstance(x, numpy.ndarray),
+                              stop_predicate=lambda x: isinstance(x, np.ndarray),
                               function_to_apply=numpy_to_torch)
 
-def collection_cascade(input, stop_predicate: callable, function_to_apply: callable):
+# This is a function that applies a specific function to every part of
+# the input. The input can be a directory, a list, or a tuple. It is
+# recursive in that it calls itself on each entry of itself.
+def collection_cascade(input,
+                       stop_predicate: callable,
+                       function_to_apply: callable):
     if stop_predicate(input):
         return function_to_apply(input)
     elif isinstance(input, list or tuple):
@@ -374,7 +393,8 @@ def experiment(train_slayer,dataset):
             test_acc = true_samples.item()/seen_samples
             stats['test_accuracy'].append(test_acc)
             stats['test_loss_by_epoch'].append(epoch_test_loss/len(dl_test))
-        print(' Mean acc: ', np.mean(stats['test_accuracy'][-train_env.n_splits:]))
+        print(' Mean acc: ',
+              np.mean(stats['test_accuracy'][-train_env.n_splits:]))
         
     return stats_of_runs
 
@@ -413,7 +433,7 @@ if (train_env.plot_enable):
         plt.plot(c_start[:,0], c_start[:, 1], 'bo', label='center initialization')
         plt.plot(c_end[:,0], c_end[:, 1], 'ro', label='center learned')
 
-        all_centers = numpy.stack(stats['centers'], axis=0)
+        all_centers = np.stack(stats['centers'], axis=0)
         for i in range(all_centers.shape[1]):
             points = all_centers[:,i, :]
             plt.plot(points[:, 0], points[:, 1], '-k', alpha=0.25)

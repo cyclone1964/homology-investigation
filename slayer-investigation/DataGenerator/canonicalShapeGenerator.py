@@ -1,52 +1,19 @@
-# This program is designed to generate .dat, .ldm, and .ldmf files to
-# test the application of persistent homology to the classification of
-# 3-D objects.
-#
-# It generates an ever-growing list of different 3D objects such as:
-#
-# cylinder, sphere, torus, torus-with-munchkin, interlocking torus, cube, etc
-#
-# I am writing this in python so that it can be run by anybody but
-# this is going to take a while since I am not familiar with
-# shape-generation functions in python. Thus, I wrote my own, and it's
-# implemented as a class structure. Specifically we have:
-#
-# TesselatedShape - a base class that takes lists of faces and
-# vertices and provides bookeeping and methods for selecting sets of
-# points uniformly places along the surface area of the shape. The
-# vertices/faces paradigm was stolen from matlab: the vertices is a
-# 3xN list of points in 3 space, each column being an [X, Y, Z]
-# triplet for a point. The faces are 3xM lists of indices into those
-# points, where each column is a list of 3 points in a triangle.
-#
-# Cylinder - a Tesselated Shape that parameterizes the surface as
-# MATLAB's cylinder function does. It takes a vector of radii and
-# generates a cylinder around the X axis with radius channgin in
-# uniform steps. This is remarkabley useful
-#
-# Sphere - a Cylinder with radius equal to the cosine of the X
-# coordinate to generate a Sphere
-#
-# Torus - a torus, generated parametrically
-#
-# Others to follow
-#
-# Usage
-#
-# python makeTrainingSet.py OutputPathForFiles \
-#       dataPath <NumberOfClasses> <NumPoints> <NumSamples>
-#
-
-# Import a few things
+# This is a set of classes that support generating points sampled from
+# various 3D surfaces. Specifically, there is a base class
+# "TesselatedShape" that creates surfaces tesselated by
+# triangles. This is inherited by various other canonical shapes:
+# spheres, cubes, torii, kein bottles, and also combinations of them
+# put together.
 import os
 import sys
+import random
+import math
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-# To support future expansion, I design a few classes. The base class
-# is termed a tesselated shape, specifically tesselated with
-# triangles. The structure is taken from MATLAB's patch structure
+# The base class is termed a tesselated shape, specifically tesselated
+# with triangles. The structure is taken from MATLAB's patch structure
 # interface thing. The vertices are simply a 3xnumVertices matrix of
 # points in 3-space, each column a new point. The faces are, in this
 # case, 3xnumFaces array of column indices into the vertex
@@ -104,12 +71,12 @@ class TesselatedShape:
         selector = np.concatenate(([0], selector))
         self.selector = selector/selector[-1]
 
-    # This method returns points randomly sampled along the
+    # This method returns points uniformly randomly sampled along the
     # tesslated shape.  For each point, it randomly selects one of the
     # faces, and then it picks a point uniformly on that face. Because
     # these are triangles, the generation of a uniformly sampled point
     # is a little tricky.
-    #
+
     # What we do is for each triangle, we form an orthogonal pair of
     # axes in the plane of the triangle. These axes consist of the
     # longest side of the triangle and an orthognalized and scaled
@@ -117,7 +84,16 @@ class TesselatedShape:
     # of the rectangle that holds the triangle. We can then randomly
     # select points along each of those two axes and check if they are
     # in the triangle by computing the barycentric coordinates.
-    def getPoints(self,count):
+
+    # If occlusion is enabled, this routine will also remove a certain
+    # percentage of the shape such that all the randomly removed
+    # points lay on one side of a randomly oriented plane. This is
+    # done by#
+    #
+    #   1) Randomly rotating the points sampled 
+    #   2) Sorting the remaining points by z component
+    #   3) Return the indicated number of points that have the highest Z value
+    def getPoints(self,count,occlusion=0):
 
         # Initialize the points and indices
         points = np.zeros((3,count))
@@ -221,6 +197,78 @@ class TesselatedShape:
             # Store this point and go to the next
             points[:,pointIndex] = point
             faceIndices[pointIndex] = faceIndex
+
+        # Now, if it's required, we implement occlusion. This is done
+        # with a random rotation followed by a sorting in Z and
+        # keeping the indicated percentage of points.
+
+        # The randome rotation is executed by first generating a
+        # random quarternion. This avoids biases inherent in using
+        # random angles.
+
+        # 
+
+        if (occlusion > 0):
+            # For those not familiar, a quarternion is a representation of
+            # a rotation as an axis of rotation and an angle around that
+            # axis. Generating a random direction is easily done by
+            # choosing a random point on a sphere.
+            temp = Sphere()
+            direction, index = temp.getPoints(1)
+            direction = direction/np.linalg.norm(direction,2)
+            
+            # NOTE: This is only from 0 to pi because the formulation of
+            # the quarternion uses theta/2
+            angle = np.pi * np.random.rand(1)
+            angle.shape = (1,1)
+            q = np.concatenate((np.sin(angle), 
+                                np.cos(angle)*np.array(direction)))
+
+            # Al this math taken from Wikipedia for computing the
+            # rotation matrix associated with a quaternion.
+
+            # Extract the values from Q
+            q0 = q[0]
+            q1 = q[1]
+            q2 = q[2]
+            q3 = q[3]
+    
+            # First row of the rotation matrix
+            r00 = 2 * (q0 * q0 + q1 * q1) - 1
+            r01 = 2 * (q1 * q2 - q0 * q3)
+            r02 = 2 * (q1 * q3 + q0 * q2)
+            
+            # Second row of the rotation matrix
+            r10 = 2 * (q1 * q2 + q0 * q3)
+            r11 = 2 * (q0 * q0 + q2 * q2) - 1
+            r12 = 2 * (q2 * q3 - q0 * q1)
+            
+            # Third row of the rotation matrix
+            r20 = 2 * (q1 * q3 - q0 * q2)
+            r21 = 2 * (q2 * q3 + q0 * q1)
+            r22 = 2 * (q0 * q0 + q3 * q3) - 1
+            
+            # 3x3 rotation matrix
+            rot_matrix = np.array([[r00, r01, r02],
+                                   [r10, r11, r12],
+                                   [r20, r21, r22]])
+            rot_matrix.shape = (3,3)
+
+            # Now rotate the points
+            points = np.matmul(rot_matrix,points)
+
+            # Now, let's sort by the Z axis
+            indices = np.argsort(points[2,:])
+
+            # We want to remove the first part of them (the ones with
+            # the lowest Z values) as if they were occluded by a
+            # plane.
+            num_occluded = math.floor(occlusion * len(indices))
+            indices = indices[num_occluded:]
+            points = points[:,indices]
+            faceIndices = faceIndices[indices]
+
+        # Now form the rotation matrix
         return [points, faceIndices]
 
     # Now, in forming shapes, it is useful to be able to do a few
@@ -305,7 +353,7 @@ class TesselatedShape:
             self.vertices[index,:] = self.vertices[index,:] + offset[index]
 
     # This function exports the shape to a MATLAB .m file so that it
-    # can be fed to MATLABS surf function for display. THis is because
+    # can be fed to MATLABS surf function for display. This is because
     # python does not render 3D very well.
     def export(self,fileName):
         fileId = open(fileName,'w')
@@ -576,7 +624,7 @@ class Torus(TesselatedShape):
 
         [faces, vertices] = tesselateMatrix(X,Y,Z)
         TesselatedShape.__init__(self,faces, vertices,name)
-        self.center();
+        self.center()
         
 # This creates a line of tori, stacked along the Z axis, all touching
 # of the given count.
@@ -740,65 +788,40 @@ class StandardKleinBottle(TesselatedShape):
         TesselatedShape.__init__(self,faces,vertices,name)
         self.center()
 
-if __name__ == "__main__":
+# This function executes the generation of all the files for a given
+# set of shapes. Put another way, it creates a training/evaluation
+# training set. The inputs are:
+#
+# shapes - the list of shapes to sample from
+# outputPath - where to put all the shape data files and labels file
+# numPoints - the number of points to sample for each shape sample
+# numSamples - how many total training samples to generate
+# occlusion - what the occlusion is for each shape
+#
+# It generates the following data files
+#
+# ShapeX.dat - a file containing numPoints lines, each with X/Y/Z of point
+# ShapeX.ldm - the lower diginal matrix: numPoints lines with 1 - numPoints-1
+# ShapeX.ldmf - a flattened ldm
+# ShapeX.bc - the barcodes file, each line with a birth/death pair and a dim
+# ShapeX_Y.sli - sorted barcodes for dim Y
+def generateShapeData(shapes,
+                      outputPath,
+                      numPoints=64,
+                      numSamples=5000,
+                      occlusion = 0):
 
+    # Check if the output path exists
+    if (not os.path.exists(outputPath)):
+        print('Directory Does Not Exist ... Create:  ',outputPath)
+        os.makedirs(outputPath)
+        
     # The path to the ripser excecutable
     ripserPath = "../../ripser-investigation/ripser"
-    
-    # The default list of shapes we will make: we do this first so we
-    # know how many shapes we have available when parsing the command
-    # line arguments below
-    print('Building Shape Catalog ....');
-    shapes = []
-    shapes.append(Figure8KleinBottle())
-    shapes.append(StandardKleinBottle())
-    shapes.append(Sphere())
-    shapes.append(Torus())
-    shapes.append(TorusSphere())
-    shapes.append(InterTorus())
-    shapes.append(StringOfSpheres(count = 2))
-    shapes.append(StringOfSpheres(count = 3))
-    shapes.append(StringOfSpheres(count = 4))
-    shapes.append(StringOfTori(count = 2))
-    shapes.append(StringOfTori(count = 3))
-    shapes.append(StringOfTori(count = 4))
-    shapes.append(RackOfSpheres(numRows = 2))
-    shapes.append(RackOfSpheres(numRows = 3))
-    shapes.append(RackOfSpheres(numRows = 4))
-    shapes.append(Sphyrimid(numLayers = 2))
-    shapes.append(Sphyrimid(numLayers = 3))
-    shapes.append(Sphyrimid(numLayers = 4))
-    shapes.append(CylinderWithTorusSphereEnds())
-
-    # Parse the command line arguments
-    print('Parse Arguments ...')
-    if (len(sys.argv) < 2):
-        print('Usage: ', sys.argv[0],' PathToOutput <NumberOfClasses> ')
-        print('          <NumPoints> <NumSamples>')
-        sys.exit()
 
     # Set the output path and number of classes: number of classes
     # limited to the number above
-    outputPath = sys.argv[1]
-    if (len(sys.argv) > 2):
-        numClasses = int(sys.argv[2])
-    else:
-        numClasses = len(shapes)
-    if (numClasses > len(shapes)):
-        print('Warning; Number of classes limited to ',repr(len(shapes)))
-        numClasses = len(shapes)
-
-    # Set the number of points to sample them by
-    if (len(sys.argv) > 3):
-        numPoints = int(sys.argv[3])
-    else:
-        numPoints = 64
-
-    # Set the number of samples to generate
-    if (len(sys.argv) > 4):
-        numSamples = int(sys.argv[4])
-    else:
-        numSamples = 5000
+    numClasses = len(shapes)
 
     # Now go through and center and scale them all and then also export them so
     # I can look at them in matlab.
@@ -808,13 +831,8 @@ if __name__ == "__main__":
                    np.amin(shapes[index].vertices,1))
         scale = 1/np.amax(extents)
         shapes[index].scale(scale)
-        #fileName = shapes[index].name + repr(index) + '.m'
-        #shapes[index].export(fileName)
-
-    if (numClasses < 0 or numClasses > len(shapes)):
-        print('Unsupported number of classes: ', numClasses)
-        sys.exit()
-    shapes = shapes[:numClasses]
+        fileName = outputPath + "/" + shapes[index].name + repr(index) + '.m'
+        shapes[index].export(fileName)
 
     # Open the label file: we will write the labels after each shape
     # so that the data files are there for each line.
@@ -824,11 +842,11 @@ if __name__ == "__main__":
     for count in range(numSamples):
         typeIndex = np.random.randint(len(shapes))
         shape = shapes[typeIndex]
-        print('Shape {}: Type {}'.format(count,typeIndex))
         sys.stdout.flush()
 
         # .. by getting the points and writing them to the .dat file ...
-        [points, Indices] = shape.getPoints(numPoints)
+        points, _ = shape.getPoints(numPoints,occlusion=occlusion)
+
         shapeFile = open(outputPath + '/Shape' +
                          repr(count) + '.dat','w')
         for index in range(points.shape[1]):
@@ -856,14 +874,12 @@ if __name__ == "__main__":
         # Now run ripser on them
         inputFile = outputPath + "/Shape{}.ldm".format(count)
         outputFile = outputPath + "/Shape{}.bc".format(count)
-        print(" ... run ripser {} -> {}".format(inputFile,outputFile))
         command = "rm -f " + outputFile
         command = command + "; " + ripserPath + "/ripser --dim 2 " + inputFile + "| /usr/bin/awk -f parseRipserFile.awk > " + outputFile
 
         os.system(command)
 
         # Now load the output of ripser and make the sli files
-        print(" ... make slayer files")
         inputFile = outputPath + "/Shape{}.bc".format(count)
         bc = np.loadtxt(inputFile).astype(float)
     
@@ -873,7 +889,6 @@ if __name__ == "__main__":
         for dim in np.unique(dims):
             indices = np.nonzero(dims == dim)
             indices = indices[0]
-            print("    ... D {}: {}".format(dim,len(indices)))
 
             i = np.argsort(persistence[indices])
             indices = indices[i]
