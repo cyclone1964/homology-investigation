@@ -7,14 +7,14 @@ rm -f ${outputFile}
 touch ${outputFile}
 for numClass in 2 4 8 12 16
 do
-    for numPoints in 16 32 48 64
+    for numPoints in 16 32 48 64 96 128 192 256
     do
-	echo -n $numClass $numPoints " " >> ${outputFile}
-	grep Learned ${directory}/${numClass}Class${numPoints}Points/slayerStats.txt | \
-	    awk '{print $5,$7;}' >> ${outputFile}
+	file=${directory}/${numClass}Class${numPoints}Points/slayerStats.txt
+	if (test -f ${file}); then
+	    echo -n $numClass $numPoints " " >> ${outputFile}
+	    grep Learned  ${file} | awk '{print $5,$7;}' >> ${outputFile}
+	fi
     done
 done
-
-	
 	    
 		  

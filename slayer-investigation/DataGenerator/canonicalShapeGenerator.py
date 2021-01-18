@@ -205,10 +205,7 @@ class TesselatedShape:
         # The randome rotation is executed by first generating a
         # random quarternion. This avoids biases inherent in using
         # random angles.
-
-        # 
-
-        if (occlusion > 0):
+        if (occlusion != 0):
             # For those not familiar, a quarternion is a representation of
             # a rotation as an axis of rotation and an angle around that
             # axis. Generating a random direction is easily done by
@@ -263,7 +260,14 @@ class TesselatedShape:
             # We want to remove the first part of them (the ones with
             # the lowest Z values) as if they were occluded by a
             # plane.
-            num_occluded = math.floor(occlusion * len(indices))
+            if occlusion  > 0:
+                num_occluded = math.floor(occlusion * len(indices))
+            else:
+                min = abs(occlusion)
+                max = 1 + occlusion
+                temp = (max-min) * np.random.random(1) + min
+                num_occluded = math.floor(temp * len(indices))
+
             indices = indices[num_occluded:]
             points = points[:,indices]
             faceIndices = faceIndices[indices]

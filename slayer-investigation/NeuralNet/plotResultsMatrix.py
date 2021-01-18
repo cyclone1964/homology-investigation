@@ -25,9 +25,15 @@ for classIndex in range(len(numClasses)):
 plt.pcolor(matrix)
 for classIndex in range(len(numClasses)):
     for pointIndex in range(len(numPoints)):
+
+        color = "black"
+        if (matrix[classIndex,pointIndex] < 0.6):
+            color = "white"
         plt.text(pointIndex+0.5,classIndex+0.5,
                  "{:.2f}".format(matrix[classIndex,pointIndex]),
-                 ha="center",va="center")
+                 ha="center",va="center",
+                 color=color)
+            
 ax.set_xticks([0.5 + i for i in range(len(numPoints))])
 ax.set_xticklabels([str(i) for i in numPoints])
 ax.set_yticks([0.5 + i for i in range(len(numClasses))])
