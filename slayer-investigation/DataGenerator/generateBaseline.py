@@ -1,6 +1,7 @@
 # Generate the samples for the baseline data set. 
-
+import os
 import canonicalShapeGenerator as shape
+import generateClamBarcodes as clam
 
 shapes = []
 shapes.append(shape.Sphere())
@@ -23,11 +24,15 @@ shapes.append(shape.Sphyrimid(numLayers = 4))
 
 for numClasses in [2,4,8,12,16]:
     for numPoints in [16, 32, 48, 64, 96, 128, 192, 256]:
-        outputPath = ('../Data/Occluded/' +
+        outputPath = ('../Data/Baseline/' +
                       str(numClasses) + 'Class' +
                       str(numPoints) + 'Points')
-        print('Populate ',outputPath)
-        shape.generateShapeData(shapes[:numClasses],
-                                outputPath,
-                                numPoints)
+        if (not os.path.exists(outputPath + 'Labels.dat')):
+            print('Generate Shapes for ',outputPath)
+            shape.generateShapeData(shapes[:numClasses],
+                                    outputPath,
+                                    numPoints)
+        if (not os.path.exists(outputPath + 'Shape0.bcc')):
+            print('Generate Clam Barcodes ',outputPath)
+            clam.generateClamBarcodes(outputPath)
 

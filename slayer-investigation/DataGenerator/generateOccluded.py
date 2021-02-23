@@ -1,7 +1,8 @@
 # Generate the samples for the occluded data set. This is the same as the
 # baseline data set but with occlusion.
-
+import os
 import canonicalShapeGenerator as shape
+import generateClamBarcodes as clam
 
 shapes = []
 shapes.append(shape.Sphere())
@@ -24,13 +25,14 @@ shapes.append(shape.Sphyrimid(numLayers = 4))
 
 for numClasses in [2,4,8,12,16]:
     for numPoints in [16, 32, 48, 64, 96, 128, 192, 256]:
-        outputPath = ('../Data/Occluded/' +
+        outputPath = ('../Data/RandomOccluded/' +
                       str(numClasses) + 'Class' +
                       str(numPoints) + 'Points')
-        print('Populate ',outputPath)
-        shape.generateShapeData(shapes[:numClasses],
-                                outputPath,
-                                numPoints, 
-                                occlusion = 0.5)
-
-        
+        if (not os.path.exists(outputPath + 'Labels.dat')):
+            print('Generate Shapes for ',outputPath)
+            shape.generateShapeData(shapes[:numClasses],
+                                    outputPath,
+                                    numPoints, 
+                                    occlusion = 0.5)
+        if (not os.path.exists(outputPath + 'Shape0.bcc')):
+            clam.generateClamBarcodes(outputPath)

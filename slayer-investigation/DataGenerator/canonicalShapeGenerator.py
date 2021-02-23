@@ -853,6 +853,11 @@ def generateShapeData(shapes,
 
         shapeFile = open(outputPath + '/Shape' +
                          repr(count) + '.dat','w')
+
+        if (count%100 == 0):
+            print("Create Shape: " + outputPath + '/Shape' +
+                  repr(count) + '.dat')
+
         for index in range(points.shape[1]):
             shapeFile.write(repr(points[0,index]) + ', ' +
                             repr(points[1,index]) + ', ' +
