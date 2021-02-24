@@ -820,9 +820,6 @@ def generateShapeData(shapes,
         print('Directory Does Not Exist ... Create:  ',outputPath)
         os.makedirs(outputPath)
         
-    # The path to the ripser excecutable
-    ripserPath = "../../ripser-investigation/ripser"
-
     # Set the output path and number of classes: number of classes
     # limited to the number above
     numClasses = len(shapes)
@@ -880,27 +877,3 @@ def generateShapeData(shapes,
         # Write the label
         labelFile.write(repr(typeIndex)+'\n')
 
-        # Now run ripser on them
-        inputFile = outputPath + "/Shape{}.ldm".format(count)
-        outputFile = outputPath + "/Shape{}.bc".format(count)
-        command = "rm -f " + outputFile
-        command = command + "; " + ripserPath + "/ripser --dim 2 " + inputFile + "| /usr/bin/awk -f parseRipserFile.awk > " + outputFile
-
-        os.system(command)
-
-        # Now load the output of ripser and make the sli files
-        inputFile = outputPath + "/Shape{}.bc".format(count)
-        bc = np.loadtxt(inputFile).astype(float)
-    
-        persistence = bc[:,1] - bc[:,0]
-        dims = bc[:,2].astype(int)
-    
-        for dim in np.unique(dims):
-            indices = np.nonzero(dims == dim)
-            indices = indices[0]
-
-            i = np.argsort(persistence[indices])
-            indices = indices[i]
-            np.savetxt("{}/Shape{}_dim_{}.sli".format(outputPath,count,dim),
-                       bc[indices,0:2])
-    labelFile.close()
