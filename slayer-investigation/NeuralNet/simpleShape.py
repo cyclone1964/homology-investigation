@@ -125,6 +125,8 @@ class SimpleDataset(Dataset):
                 points = np.loadtxt(filename,
                                     max_rows = train_env.num_elements,
                                     ndmin = 2).astype(np.float32)
+            else:
+                points = np.array([]).astype(np.float32)
             # .. and append to the list
             X[dim] = torch.from_numpy(points)
 
@@ -181,8 +183,8 @@ class SimpleModel(nn.Module):
         for k in dims_to_use:
             s = Slayer(train_env.num_elements)
             self.slayers[k] = nn.Sequential(s)
+
         cls_in_dim = len(dims_to_use)*train_env.num_elements
-            
         self.cls = nn.Sequential(
                                 nn.Dropout(0.3),
                                 LinearCell(cls_in_dim, int(cls_in_dim/4)),    
@@ -196,8 +198,7 @@ class SimpleModel(nn.Module):
         for k in dims_to_use:
             xx = self.slayers[k](input[k])
             x.append(xx)
-
-        x = torch.cat(x, dim=1)          
+        x = torch.cat(x, dim=1)
         x = self.cls(x)       
                                               
         return x
@@ -375,7 +376,7 @@ def experiment(train_slayer,dataset):
 
             stats['train_loss_by_epoch'].append(epoch_loss/len(dl_train))            
                      
-            model.eval()    
+            model.eval()
             true_samples = 0
             seen_samples = 0
             epoch_test_loss = 0
