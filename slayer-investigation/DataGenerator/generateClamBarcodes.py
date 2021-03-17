@@ -1,7 +1,9 @@
 import os
 import sys
-sys.path.append('/Users/Matt/Documents/URI/clam')
-sys.path.append('/Users/Matt/Documents/URI/objrec')
+#sys.path.append('/Users/Matt/Documents/URI/clam')
+#sys.path.append('/Users/Matt/Documents/URI/objrec')
+sys.path.append('/home/mdaily/Software/PhD/clam')
+sys.path.append('/home/mdaily/Software/PhD/objrec')
 
 import heapq
 import numpy as np
@@ -126,13 +128,11 @@ def generateBarcodes(inputPath,
     num_shapes = len(labels)
     for index in range(num_shapes):
         inputFile = os.path.join(inputPath,f'Shape{index}.dat')
-        if (index%100 == 0):
-            print(inputFile)
         shape = np.loadtxt(inputFile,
                            delimiter=',',
                            ndmin=2)
         outputFile = os.path.join(outputPath,f'Shape{index}.bc')
-        if (count%100 == 0):
+        if (index%100 == 0):
             print('  Create Clam Barcode: ',outputFile)
         with open(outputFile, 'w') as fp:
             barcodes_by_cardinality = create_barcodes(
@@ -154,11 +154,14 @@ def generateBarcodes(inputPath,
         persistence = bc[:,1] - bc[:,0]
         dims = bc[:,2].astype(int)
 
-        np.savetxt(os.path.join(outputPath,'Labels.txt'),labels);
+        np.savetxt(os.path.join(outputPath,'Labels.dat'),labels);
         
         for dim in np.unique(dims):
             indices = np.nonzero(dims == dim)
             indices = indices[0]
+
+            if (len(indices) == 0):
+                print('Error in Clam Barcode For File',inputFile)
 
             i = np.argsort(persistence[indices])
             indices = indices[i]
