@@ -10,7 +10,7 @@ def generateBarcodes(inputPath,
     # The path to the ripser excecutable
     ripserPath = "../../ripser-investigation/ripser"
 
-    np.savetxt(os.path.join(outputPath,'Labels.txt'),labels);
+    np.savetxt(os.path.join(outputPath,'Labels.dat'),labels);
 
     for count in range(len(labels)):
         # Now run ripser on them
