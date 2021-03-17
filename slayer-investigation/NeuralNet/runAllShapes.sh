@@ -7,9 +7,17 @@ do
     for numPoints in 16 32 48 64 96 128 192 256
     do
 	directory=${path}/${numClass}Class${numPoints}Points/$2
-	outputFile=${directory}/slayerStats.txt
-	rm -f ${outputFile}
-	python3 simpleShape.py ${directory} | tee ${outputFile}
+	if [ -d "${directory}" ]; then
+	    outputFile=${directory}/slayerStats.txt
+	    if [ ! -f "${outputFile}" ]; then
+		echo Train in ${directory}
+		python3 simpleShape.py ${directory} | tee ${outputFile}
+	    else
+		echo ${outputFile} exists
+	    fi
+	else
+	    echo No Such Directory ${directory}
+	fi
     done
 done
-chmod
+
