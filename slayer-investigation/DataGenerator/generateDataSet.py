@@ -24,32 +24,32 @@ shapes.append(shape.Sphyrimid(numLayers = 3))
 shapes.append(shape.Sphyrimid(numLayers = 4))
 
 # This is a list of the data sets and the parameters for each of them
-dataSets = {'Baseline-Ripser' : {'numSamples'  : 500,
-                                 'shapePath'   : '../Data/Baseline',
-                                 'occlusion' : 0, 
-                                 'barcodeSource' : ripser,
-                                 'barcodePath' : 'Ripser',
-                                 'numClasses': [2,8,16],
-                                 'numPoints' : [32, 64, 128]},
-            'Baseline-Clam': {'numSamples'  : 5000,
-                              'shapePath'   : '../Data/Baseline', 
-                              'occlusion' : 0, 
-                              'barCodeSource' : clam,
-                              'barcodePath' : 'Clam',
-                              'numClasses': [2,4,8,12,16],
-                              'numPoints' : [32, 48, 64, 96, 128, 192, 256]},
+dataSets = {'Fast-Baseline-Ripser' : {'numSamples'  : 5000,
+                                      'shapePath'   : '../Data/Fast-Baseline',
+                                      'occlusion' : 0, 
+                                      'barcodeSource' : ripser,
+                                      'barcodePath' : 'Ripser',
+                                      'numClasses': [2,8,16],
+                                      'numPoints' : [32, 64, 128]},
+            'Fast-Baseline-Clam': {'numSamples'  : 5000,
+                                   'shapePath'   : '../Data/Fast-Baseline', 
+                                   'occlusion' : 0, 
+                                   'barcodeSource' : clam,
+                                   'barcodePath' : 'Clam',
+                                   'numClasses': [2,8,16],
+                                   'numPoints' : [32, 64, 128]},
             'Occluded-Ripser': {'numSamples'  : 5000,
-                              'shapePath'   : '../Data/Occluded', 
-                              'occlusion' : 0.5, 
-                              'barCodeSource' : ripser,
-                              'barcodePath' : 'Ripser',
-                              'numClasses': [2,4,8,12,16],
-                              'numPoints' : [32, 48, 64, 96, 128, 192, 256]},
+                                'shapePath'   : '../Data/Occluded', 
+                                'occlusion' : 0.5, 
+                                'barCodeSource' : ripser,
+                                'barcodePath' : 'Ripser',
+                                'numClasses': [2,4,8,12,16],
+                                'numPoints' : [32, 48, 64, 96, 128, 192, 256]},
             'Occluded-Clam': {'numSamples'  : 5000,
                               'shapePath'   : '../Data/Occluded', 
                               'occlusion' : 0.5, 
                               'barCodeSource' : clam,
-                              'barcodePath' : 'Clam',
+                              'barcodePath' : 'NewClam',
                               'numClasses': [2,4,8,12,16],
                               'numPoints' : [32, 48, 64, 96, 128, 192, 256]},
             'Random-Ripser': {'numSamples'  : 5000,
@@ -63,16 +63,16 @@ dataSets = {'Baseline-Ripser' : {'numSamples'  : 500,
                               'shapePath'   : '../Data/RandomOccluded', 
                               'occlusion' : -0.25, 
                               'barCodeSource' : clam,
-                              'barcodePath' : 'Clam',
+                              'barcodePath' : 'NewClam',
                               'numClasses': [2,4,8,12,16],
                               'numPoints' : [32, 48, 64, 96, 128, 192, 256]},
-            }
-                      
+}
+
 runData = dataSets[sys.argv[1]]
 
 for numClasses in runData['numClasses'] :
     for numPoints in runData['numPoints'] :
-    
+        
         shapePath = os.path.join(runData['shapePath'],
                                  str(numClasses) + 'Class' +
                                  str(numPoints) + 'Points')
